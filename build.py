@@ -390,6 +390,244 @@ CHART_CSS = """
 """
 
 
+
+ALERTS_JS = r"""
+// --------------------------------------------------------------------- alerts
+// Deliberately NOT "notify on every update". The site rebuilds every few
+// minutes; wiring a notification to that would fire ~288 times a day, and the
+// only thing it would reliably produce is people turning notifications off. So
+// each alert below is tied to something actually HAPPENING, and each is
+// independently switchable.
+//
+// These fire from the page, so they need it open -- in a tab, or installed to
+// the home screen and running in the background. Reaching a locked phone with
+// the app closed needs a server to hold subscriptions, which a static site has
+// nowhere to put.
+var ALERT_DEFAULTS = {move:true, news:true, event:true, level:false, every:false};
+var AL = (function(){
+  try{ return Object.assign({}, ALERT_DEFAULTS, JSON.parse(localStorage.getItem('gw_alerts')||'{}')); }
+  catch(e){ return Object.assign({}, ALERT_DEFAULTS); }
+})();
+var SEEN = (function(){
+  try{ return JSON.parse(localStorage.getItem('gw_seen')||'[]'); }catch(e){ return []; }
+})();
+var PXHIST = [];        // rolling live-price history, for the move test
+var LASTFIRE = {};      // per-category cooldown
+
+function saveAlerts(){ try{ localStorage.setItem('gw_alerts', JSON.stringify(AL)); }catch(e){} }
+function saveSeen(){
+  SEEN = SEEN.slice(-250);                    // bounded: this is localStorage
+  try{ localStorage.setItem('gw_seen', JSON.stringify(SEEN)); }catch(e){}
+}
+
+async function toggleAlert(key, el){
+  AL[key] = el.checked;
+  saveAlerts();
+  if(el.checked && !(await ensurePermission())){
+    el.checked = false; AL[key] = false; saveAlerts();
+  }
+  paintAlertState();
+}
+
+async function ensurePermission(){
+  if(!('Notification' in window)){
+    alertNote('This browser cannot show notifications.'); return false;
+  }
+  if(Notification.permission === 'granted') return true;
+  if(Notification.permission === 'denied'){
+    alertNote('Notifications are blocked for this site. Turn them back on in your '
+            + 'browser settings for this page, then try again.');
+    return false;
+  }
+  const p = await Notification.requestPermission();
+  if(p !== 'granted'){ alertNote('Not enabled \u2014 you said no to the permission prompt.'); return false; }
+  alertNote('');
+  return true;
+}
+
+function alertNote(msg){ const el = E('alertnote'); if(el) el.textContent = msg; }
+
+// One place that actually shows a notification, so the cooldown and the
+// installed-vs-tab difference are handled once rather than at four call sites.
+function fire(category, title, body, cooldownSec){
+  if(Notification.permission !== 'granted') return;
+  const now = Date.now();
+  if(LASTFIRE[category] && now - LASTFIRE[category] < (cooldownSec||300)*1000) return;
+  LASTFIRE[category] = now;
+  const opts = {body:body, icon:'icon-192.png', badge:'icon-192.png',
+                tag:'gw-'+category, renotify:false};
+  try{
+    if(navigator.serviceWorker && navigator.serviceWorker.ready){
+      navigator.serviceWorker.ready.then(function(reg){
+        reg.showNotification(title, opts);
+      }).catch(function(){ new Notification(title, opts); });
+    } else { new Notification(title, opts); }
+  }catch(e){ /* some browsers refuse the direct constructor; nothing to do */ }
+}
+
+// --- the triggers ----------------------------------------------------------
+
+// A move is only worth waking someone for if it is big FOR THIS HOUR. Gold at
+// 3am moves a fraction of what it does when New York opens, so a fixed
+// threshold would either scream all afternoon or never fire overnight.
+function checkMove(){
+  if(!AL.move || LIVEPX === null) return;
+  PXHIST.push({t:Date.now(), p:LIVEPX});
+  const cut = Date.now() - 3*60*1000;
+  while(PXHIST.length && PXHIST[0].t < cut) PXHIST.shift();
+  if(PXHIST.length < 6) return;                      // need ~1 min of samples
+
+  const then = PXHIST[0].p, mins = (Date.now() - PXHIST[0].t)/60000;
+  if(mins < 1.5) return;
+  const bp = Math.abs((LIVEPX - then)/then * 10000);
+
+  const hr = new Date().getUTCHours();               // hourly table is in SGT
+  const sgt = (hr + 8) % 24;
+  const row = (LAST.hourly||[]).find(function(r){ return r.hour === sgt; });
+  const normal = row ? row.avg : 2.0;                // bp per minute
+  const expected = normal * mins;
+  if(expected <= 0) return;
+
+  if(bp > expected * 3){
+    const dir = LIVEPX > then ? 'jumped up' : 'dropped';
+    const usd = Math.abs(LIVEPX - then).toFixed(1);
+    fire('move', 'Gold ' + dir + ' $' + usd,
+         'That is about ' + Math.round(bp/expected) + 'x the usual move for this '
+         + 'time of day. Now $' + LIVEPX.toFixed(2) + '.', 420);
+  }
+}
+
+// A headline is "new" if we have not shown it before -- not if the build is
+// new. Those are different things, and confusing them is how you end up
+// re-announcing the same story every five minutes.
+function checkNews(d){
+  if(!AL.news) return;
+  const items = (d.pinned || d.news || []).slice(0, 6);
+  for(const n of items){
+    const id = (n.title||'').slice(0,90);
+    if(!id || SEEN.indexOf(id) !== -1) continue;
+    SEEN.push(id);
+    if(FIRSTLOAD) continue;          // do not dump the backlog on first open
+    fire('news', 'Gold news: ' + (n.cat || 'market'),
+         (n.title||'') + (n.effect ? '\n\n' + n.effect : ''), 120);
+  }
+  saveSeen();
+}
+
+function checkEvent(d){
+  if(!AL.event) return;
+  const now = Date.now()/1000;
+  for(const c of (d.calendar||[])){
+    if(!c.ts || c.ts < now) continue;
+    const mins = Math.round((c.ts - now)/60);
+    if(mins > 15 || mins < 0) continue;
+    const id = 'ev:' + c.ts + c.title;
+    if(SEEN.indexOf(id) !== -1) continue;
+    SEEN.push(id); saveSeen();
+    fire('event', c.title + ' in ' + mins + ' min',
+         'Big US number due. Gold often moves sharply the moment it lands.', 60);
+  }
+}
+
+function checkLevel(){
+  if(!AL.level || LIVEPX === null || !LAST.levels) return;
+  const lv = LAST.levels;
+  if(lv.day_high && LIVEPX > lv.day_high)
+    fire('level', 'Gold broke today\u2019s high',
+         'Now $' + LIVEPX.toFixed(2) + ', above today\u2019s previous high of $'
+         + lv.day_high.toFixed(2) + '.', 900);
+  else if(lv.day_low && LIVEPX < lv.day_low)
+    fire('level', 'Gold broke today\u2019s low',
+         'Now $' + LIVEPX.toFixed(2) + ', below today\u2019s previous low of $'
+         + lv.day_low.toFixed(2) + '.', 900);
+}
+
+// The literal "tell me about every update" option, off by default and labelled
+// for what it is, because the honest version of this feature is the four above.
+var LASTBUILD = null;
+function checkEvery(d){
+  if(!AL.every || !d.built_epoch) return;
+  if(LASTBUILD !== null && d.built_epoch !== LASTBUILD && !FIRSTLOAD){
+    fire('every', 'Gold Watch updated',
+         '$' + (d.price||'') + ' \u00b7 ' + (d.bias||'') + ' \u00b7 '
+         + (d.n_news||0) + ' headlines.', 60);
+  }
+  LASTBUILD = d.built_epoch;
+}
+
+var FIRSTLOAD = true;
+function runAlerts(d){
+  checkNews(d); checkEvent(d); checkEvery(d);
+  FIRSTLOAD = false;
+}
+
+function paintAlertState(){
+  const on = Object.keys(ALERT_DEFAULTS).filter(function(k){ return AL[k]; }).length;
+  const el = E('alertstate'); if(!el) return;
+  if(!('Notification' in window)) { el.textContent = 'not supported in this browser'; return; }
+  el.textContent = Notification.permission === 'granted'
+    ? (on ? on + ' alert' + (on>1?'s':'') + ' on' : 'all off')
+    : 'not enabled yet';
+  el.style.color = (Notification.permission === 'granted' && on) ? '#00d4aa' : '#5f6368';
+}
+
+function initAlerts(){
+  Object.keys(ALERT_DEFAULTS).forEach(function(k){
+    const el = E('al_'+k); if(el && el !== _stub) el.checked = !!AL[k];
+  });
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  }
+  paintAlertState();
+}
+"""
+
+# Collapsed by default and placed high. Sitting at the bottom of a 12,000px
+# page it was technically present and effectively invisible -- nobody scrolls
+# that far to switch on a feature they do not know exists. <details> is native,
+# so it costs no JS and stays keyboard- and screen-reader-friendly.
+ALERTS_HTML = """<div class="card" id="alertcard">
+  <details id="aldet">
+  <summary><span class="alsum">Tell me when something happens</span>
+    <span class="alstate" id="alertstate">not enabled yet</span></summary>
+  <div class="sub">Alerts appear on this device. Keep the page open, or add it to
+    your home screen so it can run in the background.</div>
+  <label class="alrow"><input type="checkbox" id="al_move" onchange="toggleAlert('move',this)">
+    <span><b>A big move</b><em>Bigger than normal for this time of day, so it stays quiet overnight and speaks up when New York opens.</em></span></label>
+  <label class="alrow"><input type="checkbox" id="al_news" onchange="toggleAlert('news',this)">
+    <span><b>Important news</b><em>Only headlines that reach the top of the list, and only once each.</em></span></label>
+  <label class="alrow"><input type="checkbox" id="al_event" onchange="toggleAlert('event',this)">
+    <span><b>A big report is 15 minutes away</b><em>Jobs numbers, inflation, Fed decisions. Gold usually jumps the second these land.</em></span></label>
+  <label class="alrow"><input type="checkbox" id="al_level" onchange="toggleAlert('level',this)">
+    <span><b>Today's high or low breaks</b><em>Price goes past where it has been all day.</em></span></label>
+  <label class="alrow"><input type="checkbox" id="al_every" onchange="toggleAlert('every',this)">
+    <span><b>Every single refresh</b><em>About 288 times a day. Most people regret this one.</em></span></label>
+  <div class="err" id="alertnote" style="display:none"></div>
+  </details>
+</div>
+"""
+
+ALERTS_CSS = """
+#aldet summary{display:flex;justify-content:space-between;align-items:center;gap:10px;
+  cursor:pointer;list-style:none;padding:1px 0}
+#aldet summary::-webkit-details-marker{display:none}
+#aldet summary::after{content:"\\203a";color:#5f6368;font-size:20px;line-height:1;
+  transform:rotate(90deg);transition:transform .18s ease;flex:none}
+#aldet[open] summary::after{transform:rotate(-90deg)}
+.alsum{font-size:13px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#9aa0a6}
+.alstate{font-size:11.5px;color:#5f6368;margin-left:auto;margin-right:4px}
+#aldet .sub{margin:11px 0 4px}
+.alrow{display:flex;gap:11px;align-items:flex-start;padding:11px 0;
+  border-bottom:1px solid #1a1f2a;cursor:pointer}
+.alrow:last-of-type{border-bottom:0}
+.alrow input{margin-top:3px;width:18px;height:18px;flex:none;accent-color:#00d4aa;cursor:pointer}
+.alrow b{display:block;font-size:14px;font-weight:600;color:#e8eaed}
+.alrow em{display:block;font-style:normal;font-size:11.5px;color:#5f6368;line-height:1.5;margin-top:2px}
+#alertnote:not(:empty){display:block !important}
+#alertnote:empty{display:none !important}
+"""
+
+
 # The key box, injected above the chat input.
 KEY_HTML = """<div class="keyrow">
   <input id="keybox" type="password" placeholder="Paste your free Groq key (stays in this browser)"
@@ -472,7 +710,7 @@ def make_page(system_prompt):
 
     # 8. the key box and its styling
     swap('<div class="chatrow">', KEY_HTML + '<div class="chatrow">', "key box")
-    swap("</style>", KEY_CSS + CHART_CSS + "</style>", "key css")
+    swap("</style>", KEY_CSS + CHART_CSS + ALERTS_CSS + "</style>", "key css")
 
     # 9. the chart: markup under the summary line, code before render(), and the
     #    library served from this site rather than a third-party CDN so the page
@@ -491,8 +729,16 @@ def make_page(system_prompt):
          "chart boot")
     # redraw when a new build lands, and keep the forming candle live
     swap("  LAST=d;\n", "  LAST=d;\n  initChart(); drawChart();\n", "chart redraw")
-    swap("    paintLive();\n  }catch(e)", "    paintLive(); tickChart();\n  }catch(e)",
+    swap("    paintLive();\n  }catch(e)",
+         "    paintLive(); tickChart(); checkMove(); checkLevel();\n  }catch(e)",
          "chart live tick")
+
+    # 10. alerts: markup, code, boot, and the per-build checks
+    swap('<div class="card" id="pinned"', ALERTS_HTML + '<div class="card" id="pinned"',
+         "alerts markup")
+    swap("let CAT='all';", ALERTS_JS + "\nlet CAT='all';", "alerts js")
+    swap("initChart();\n", "initChart();\n  initAlerts();\n", "alerts boot")
+    swap("  LAST=d;\n", "  LAST=d;\n  runAlerts(d);\n", "alerts per build")
 
     # 9. relative paths: the site lives in a subfolder, not at the domain root
     html = html.replace('href="/manifest.json"', 'href="manifest.json"')
