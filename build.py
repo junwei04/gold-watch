@@ -99,6 +99,25 @@ LIVE_JS = r"""
 var LAST = {};              // the last built payload, shared with the chat
 var LIVEPX = null;
 
+// Two sources for the same file, freshest first. The branch copy is rewritten
+// by the refresh loop every few minutes; the copy shipped with the site is
+// only as new as the last deploy, and is here so the page still works if
+// raw.githubusercontent is blocked or down.
+var DATA_URLS = [
+  'https://raw.githubusercontent.com/junwei04/gold-watch/data/data.json',
+  'data.json'
+];
+async function fetchData(){
+  let err;
+  for(const u of DATA_URLS){
+    try{
+      const r = await fetch(u + '?t=' + Date.now(), {cache:'no-store'});
+      if(r.ok) return r;
+    }catch(e){ err = e; }
+  }
+  throw (err || new Error('no data source reachable'));
+}
+
 async function tickPrice(){
   try{
     const r = await fetch('https://api.gold-api.com/price/XAU', {cache:'no-store'});
@@ -668,8 +687,14 @@ def make_page(system_prompt):
         did.append(label)
 
     # 1. data comes from a file on a CDN, not a local server
-    swap("fetch('/state.json',{cache:'no-store'})",
-         "fetch('data.json?t='+Date.now(),{cache:'no-store'})", "data source")
+    # Not from this origin. GitHub Pages serves everything with
+    # cache-control: max-age=600 AND ignores the query string when caching, so
+    # "data.json?t=<now>" came back x-cache: HIT with an age of two minutes --
+    # the buster never busted anything, and the data could be ten minutes old
+    # however often it was rebuilt. raw.githubusercontent caches for 300s and is
+    # written by the refresh loop every few minutes, so it is the fresher path;
+    # the Pages copy stays as the fallback for when it is unreachable.
+    swap("fetch('/state.json',{cache:'no-store'})", "fetchData()", "data source")
 
     # 2. the briefing is baked into that file rather than generated per request
     swap("E('brief').value=await (await fetch('/brief')).text();",
@@ -757,6 +782,13 @@ def main():
 
     with open(os.path.join(DOCS, "data.json"), "w") as f:
         json.dump(state, f, separators=(",", ":"))
+
+    # The refresh loop only needs the data. Rebuilding the page every few
+    # minutes would mean redeploying the whole site to change one file.
+    if "--data-only" in sys.argv:
+        print(f"data only: ${state.get('price')}  {state.get('n_news')} headlines",
+              flush=True)
+        return
 
     print("building page:", flush=True)
     with open(os.path.join(DOCS, "index.html"), "w") as f:

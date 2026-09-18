@@ -394,6 +394,25 @@ function askQ(q){E('qbox').value=q;send();}
 var LAST = {};              // the last built payload, shared with the chat
 var LIVEPX = null;
 
+// Two sources for the same file, freshest first. The branch copy is rewritten
+// by the refresh loop every few minutes; the copy shipped with the site is
+// only as new as the last deploy, and is here so the page still works if
+// raw.githubusercontent is blocked or down.
+var DATA_URLS = [
+  'https://raw.githubusercontent.com/junwei04/gold-watch/data/data.json',
+  'data.json'
+];
+async function fetchData(){
+  let err;
+  for(const u of DATA_URLS){
+    try{
+      const r = await fetch(u + '?t=' + Date.now(), {cache:'no-store'});
+      if(r.ok) return r;
+    }catch(e){ err = e; }
+  }
+  throw (err || new Error('no data source reachable'));
+}
+
 async function tickPrice(){
   try{
     const r = await fetch('https://api.gold-api.com/price/XAU', {cache:'no-store'});
@@ -853,7 +872,7 @@ let CAT='all';
 function setCat(b,c){CAT=c;document.querySelectorAll('.filt button').forEach(x=>x.classList.remove('on'));b.classList.add('on');render();}
 let lastPx=null;
 async function render(){
-  let d; try{ d=await (await fetch('data.json?t='+Date.now(),{cache:'no-store'})).json(); }
+  let d; try{ d=await (await fetchData()).json(); }
   catch(e){ E('st').textContent='disconnected';
             E('dot').style.background='#ff3b30'; return; }
 

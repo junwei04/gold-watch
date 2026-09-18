@@ -2,10 +2,12 @@ name: build and publish
 
 on:
   schedule:
-    # Every 5 minutes is the floor GitHub allows. In practice a busy queue can
-    # push a run later than that, which is exactly why the page prints how old
-    # its news is instead of implying it is current.
-    - cron: "*/5 * * * *"
+    # Was "*/5". GitHub ran it zero times in two hours: short intervals are
+    # documented as droppable under load and */5 is dropped heavily. This job
+    # only rebuilds the PAGE now -- the data is kept fresh by refresh.yml -- so
+    # twice an hour is plenty, and explicit offset minutes avoid the top of the
+    # hour, which is the most congested slot on the scheduler.
+    - cron: "8,38 * * * *"
   workflow_dispatch:
   push:
     branches: [main]
