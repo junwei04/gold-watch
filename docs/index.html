@@ -1,0 +1,586 @@
+<!doctype html><html><head><meta charset="utf-8">
+<title>Gold Watch</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#0a0c10">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="touch-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Gold Watch">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0c10;color:#e8eaed;font:15px/1.6 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;padding:22px}
+.wrap{max-width:1180px;margin:0 auto}
+.card,.lead,.mv,.mbox{overflow-wrap:anywhere}   /* a long unbroken token must wrap, not widen the page */
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.brand{font-size:12px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#6b7280}
+.px{font-size:46px;font-weight:800;letter-spacing:-1.8px;font-variant-numeric:tabular-nums;line-height:1}
+.chg{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:5px}
+.up{color:#00d4aa}.dn{color:#ff3b30}
+.meta{font-size:11.5px;color:#5f6368;text-align:right;line-height:1.8}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#00d4aa;margin-right:5px}
+.flash{animation:fl 1s ease}@keyframes fl{0%{color:#ffd479}100%{color:#e8eaed}}
+.lead{background:#12151c;border:1px solid #1e2430;border-left:3px solid #00d4aa;border-radius:11px;padding:15px 18px;margin:18px 0;font-size:16px}
+.lead b{color:#fff}
+.grid{display:grid;grid-template-columns:1fr 360px;gap:18px}
+@media(max-width:960px){.grid{grid-template-columns:1fr}}
+/* ---- phone ------------------------------------------------------------
+   Added once this stopped being a desktop dashboard and became the thing
+   he actually opens: a home-screen app on a ~390pt screen, held one-handed,
+   often at arm's length while a chart is on the other screen. So: thumb-sized
+   tap targets, a price big enough to read without focusing, and safe-area
+   padding so nothing hides under the notch or the home indicator. */
+@supports(padding:max(0px)){
+  body{padding-left:max(14px,env(safe-area-inset-left));
+       padding-right:max(14px,env(safe-area-inset-right));
+       padding-top:max(14px,env(safe-area-inset-top));
+       padding-bottom:max(18px,env(safe-area-inset-bottom))}
+}
+@media(max-width:640px){
+  body{padding:16px 14px 26px;font-size:15.5px}
+  header{align-items:flex-start}
+  .px{font-size:54px;letter-spacing:-2px}      /* bigger, not smaller: it is the one number he reads at a glance */
+  .chg{font-size:17px}
+  .meta{text-align:left;font-size:11px;line-height:1.7}
+  .card{padding:15px 14px;border-radius:14px;margin-bottom:14px}
+  .lead{padding:14px 15px;font-size:16px}
+  h2{font-size:13px}
+  /* Apple's minimum comfortable touch target is 44pt. Anything smaller gets
+     mis-tapped on a moving train, which is where this actually gets read. */
+  .askbtn{padding:16px;font-size:16px;border-radius:12px}
+  .filt button{padding:9px 14px;font-size:13px;border-radius:16px}
+  .chip{padding:9px 13px;font-size:13px}
+  .chatrow input{padding:13px;font-size:16px}   /* 16px stops iOS zooming the page on focus */
+  .chatrow button{padding:13px 16px;font-size:15px}
+  .chatlog{max-height:46vh}
+  .ses .nt{max-width:46%}
+  .cd{font-size:11px}
+  .f,.ev,.pr,.ses{font-size:13px}
+  .volchart{height:50px}
+  .modal{padding:0;align-items:flex-end}
+  .mbox{max-width:100%;border-radius:16px 16px 0 0;max-height:88vh;
+        padding:18px 16px max(18px,env(safe-area-inset-bottom))}
+}
+@media(max-width:380px){
+  .px{font-size:46px}
+  body{padding-left:11px;padding-right:11px}
+}
+.card{background:#12151c;border:1px solid #1e2430;border-radius:13px;padding:18px;margin-bottom:18px}
+h2{font-size:15px;color:#e8eaed;margin-bottom:4px;font-weight:700}
+.sub{font-size:12.5px;color:#6b7280;margin-bottom:14px}
+.bias{font-size:26px;font-weight:800;letter-spacing:-0.6px;margin:2px 0}
+.biasbar{position:relative;height:8px;background:linear-gradient(90deg,#ff3b30,#ff9500,#2a2f3a 46%,#2a2f3a 54%,#34c759,#00d4aa);border-radius:4px;margin:14px 0 6px}
+.needle{position:absolute;top:-4px;width:3px;height:16px;background:#fff;border-radius:2px;box-shadow:0 0 9px rgba(255,255,255,.85);transition:left .7s cubic-bezier(.22,1,.36,1)}
+.ends{display:flex;justify-content:space-between;font-size:10.5px;color:#5f6368;text-transform:uppercase;letter-spacing:1px}
+.f{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #1a1f2a;font-size:12.5px}
+.f:last-child{border:0}.f .n{color:#9aa0a6}.f .d{color:#c8ccd2;font-variant-numeric:tabular-nums}
+.mv{border-left:3px solid;padding:12px 14px;margin-bottom:14px;background:#161a23;border-radius:0 10px 10px 0}
+.mvt{font-size:14.5px;font-weight:600;margin-bottom:9px;color:#e8eaed}
+.cand{padding:8px 0;border-top:1px solid #1e2430;font-size:13.5px}
+.cand:first-of-type{border-top:0}
+.ct{color:#dfe3e8}.ct a{color:inherit;text-decoration:none;border-bottom:1px dotted #3a4150}
+.ctm{color:#6b7280;font-size:11px}
+.eff{color:#7fb8a0;font-size:12.5px;margin-top:3px;line-height:1.5}
+.hl{padding:11px 0;border-bottom:1px solid #1a1f2a}
+.hl:last-child{border:0}
+.hlh{font-size:11px;color:#6b7280;margin-bottom:3px}
+.post{padding:11px 0;border-bottom:1px solid #1a1f2a}
+.post:last-child{border:0}
+.who{font-weight:700;color:#ffd479;font-size:12.5px}
+.ptxt{color:#dfe3e8;font-size:13.5px;margin:3px 0}
+.ev{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #1a1f2a;font-size:13px}
+.ev:last-child{border:0}
+.hi{color:#ff453a;font-weight:700;font-size:9.5px}.med{color:#ff9f0a;font-weight:700;font-size:9.5px}
+.cd{color:#9aa0a6;font-variant-numeric:tabular-nums;font-size:11.5px;white-space:nowrap;text-align:right}
+.empty{color:#5f6368;font-size:13px;padding:12px 0}
+.err{background:#2a1f14;border:1px solid #5a4021;color:#ffb86b;padding:9px 13px;border-radius:9px;margin-bottom:14px;font-size:12px}
+.askbtn{display:block;width:100%;background:#1f6feb;color:#fff;border:0;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+.askbtn:hover{background:#2d7ff9}.askbtn:active{transform:translateY(1px)}
+.askhint{font-size:11.5px;color:#6b7280;margin-top:8px;line-height:1.6}
+.ses{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #1a1f2a;font-size:12.5px}
+.ses:last-of-type{border:0}
+.ses .nm{color:#c8ccd2}
+.ses.on .nm{color:#00d4aa;font-weight:700}
+.ses .nt{color:#5f6368;font-size:11px;text-align:right;max-width:190px}
+.pill2{display:inline-block;font-size:9px;padding:2px 7px;border-radius:9px;background:#0f2a22;color:#00d4aa;font-weight:700;letter-spacing:.5px;margin-right:6px}
+.pill2.off{background:#1a1f2a;color:#4a4f58}
+.nextev{margin-top:11px;font-size:12.5px;color:#ffd479}
+.volchart{display:flex;align-items:flex-end;gap:2px;height:58px;margin-top:10px;overflow:hidden;max-width:100%}
+.volbar{flex:1;min-width:0;background:#1f6feb;border-radius:2px 2px 0 0;position:relative;min-height:2px}
+.volbar.pk{background:#ffd479}
+.vollbl{display:flex;justify-content:space-between;font-size:9.5px;color:#5f6368;margin-top:4px}
+.pn{padding:9px 0;border-bottom:1px solid #1a1f2a;font-size:13.5px}
+.pn:last-child{border:0}
+.pn .rank{display:inline-block;width:20px;color:#ffd479;font-weight:700}
+.pr{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1a1f2a;font-size:13px}
+.pr:last-of-type{border:0}
+.pr .lbl{color:#9aa0a6}
+.pr .val{font-variant-numeric:tabular-nums;color:#e8eaed}
+.rangebar{position:relative;height:6px;background:#1e2430;border-radius:3px;margin:14px 0 5px}
+.rangepos{position:absolute;top:-4px;width:3px;height:14px;background:#ffd479;border-radius:2px;box-shadow:0 0 8px rgba(255,212,121,.7);transition:left .6s ease}
+.rangelbl{display:flex;justify-content:space-between;font-size:10.5px;color:#5f6368;font-variant-numeric:tabular-nums}
+.dstory{margin-top:12px;font-size:12.5px;color:#7fb8a0;line-height:1.6}
+.filt{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.filt button{background:#1a1f2a;color:#9aa0a6;border:1px solid #242b38;border-radius:14px;padding:5px 11px;font-size:11.5px;cursor:pointer;font-family:inherit}
+.filt button.on{background:#1f6feb;color:#fff;border-color:#1f6feb}
+.cat{display:inline-block;font-size:9px;padding:2px 7px;border-radius:9px;letter-spacing:.6px;text-transform:uppercase;font-weight:700;margin-right:6px}
+.cat.person{background:#2b2416;color:#ffd479}
+.cat.oil{background:#1a2b20;color:#6ee7a0}
+.cat.war{background:#2e1a1a;color:#ff8a8a}
+.cat.money{background:#1a2333;color:#7fb3ff}
+.chatlog{max-height:340px;overflow-y:auto;margin-bottom:10px;padding-right:4px}
+.msg{padding:9px 12px;border-radius:11px;margin-bottom:8px;font-size:13.5px;line-height:1.6;white-space:pre-wrap;word-wrap:break-word}
+.msg.bot{background:#161a23;color:#dfe3e8}
+.msg.me{background:#1f6feb;color:#fff;margin-left:34px}
+.msg b{color:#fff}
+.msg.think{color:#6b7280;font-style:italic}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chips button{background:#1a1f2a;color:#9aa0a6;border:1px solid #242b38;border-radius:14px;padding:5px 10px;font-size:11.5px;cursor:pointer;font-family:inherit}
+.chips button:hover{background:#222836;color:#c8ccd2}
+.chatrow{display:flex;gap:7px}
+#qbox{flex:1;background:#0a0c10;border:1px solid #242b38;border-radius:9px;color:#e8eaed;padding:11px 12px;font-size:14px;font-family:inherit}
+#qbox:focus{outline:none;border-color:#1f6feb}
+#sendbtn{background:#1f6feb;color:#fff;border:0;border-radius:9px;padding:11px 16px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+#sendbtn:disabled{opacity:.5}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;padding:24px;z-index:50}
+.modal.on{display:flex}
+.mbox{background:#12151c;border:1px solid #2a3140;border-radius:14px;max-width:760px;width:100%;max-height:82vh;display:flex;flex-direction:column;padding:20px}
+.mbox h3{font-size:16px;margin-bottom:4px}
+.mbox p{font-size:12.5px;color:#6b7280;margin-bottom:12px}
+textarea{flex:1;min-height:320px;background:#0a0c10;border:1px solid #1e2430;border-radius:9px;color:#c8ccd2;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:13px;resize:none}
+.mrow{display:flex;gap:9px;margin-top:12px}
+.mrow button{flex:1;border:0;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+.copy{background:#1f6feb;color:#fff}.close{background:#1e2430;color:#c8ccd2}
+/* A flex row of N bars has an intrinsic minimum of N*min-width + (N-1)*gap.
+   With 400 one-minute bars that was 799px, so this one chart silently set the
+   width of the whole page and every line of text ran off the right edge of a
+   phone. min-width:0 lets the bars shrink; overflow:hidden means a future
+   chart with too many points clips itself instead of stretching the page. */
+.spark{display:flex;align-items:flex-end;gap:1px;height:44px;margin-top:12px;overflow:hidden;max-width:100%}
+.spark div{flex:1;min-width:0;border-radius:1px 1px 0 0}
+@media(max-width:840px){.spark{gap:0}}   /* gaps do not shrink; below this they alone would overflow */
+.note{font-size:11px;color:#454a52;line-height:1.7;margin-top:14px}
+
+.keyrow{display:flex;gap:7px;margin-bottom:7px}
+.keyrow input{flex:1;min-width:0;background:#0d1016;border:1px solid #242b38;color:#e8eaed;
+  border-radius:9px;padding:10px 12px;font-size:13px;font-family:inherit}
+.keyrow button{background:#1a1f2a;color:#9aa0a6;border:1px solid #242b38;border-radius:9px;
+  padding:10px 14px;font-size:13px;cursor:pointer;font-family:inherit}
+.keyrow button:hover{background:#242b38;color:#e8eaed}
+.keynote{font-size:11px;color:#5f6368;margin-bottom:11px}
+.keynote a{color:#7fb3ff;text-decoration:none}
+@media(max-width:640px){.keyrow input{font-size:16px}}
+</style></head><body><div class="wrap">
+<header>
+  <div>
+    <div class="brand">Gold Watch &middot; XAU/USD</div>
+    <div class="px" id="px">&mdash;</div>
+    <div class="chg" id="chg"></div>
+  </div>
+  <div class="meta">
+    <span class="dot" id="dot"></span><span id="st">connecting</span><br>
+    <span id="upd"></span><br><span id="cnt"></span>
+  </div>
+</header>
+<div class="lead" id="lead">Loading&hellip;</div>
+<div class="card" id="pinned" style="display:none">
+  <h2>Biggest things right now</h2>
+  <div id="pinnedlist"></div>
+</div>
+<div id="errbox"></div>
+<div class="grid">
+ <div>
+  <div class="card">
+    <h2>Why gold moved</h2>
+    <div class="sub">When gold jumps more than normal, here is what was in the news at that exact moment.</div>
+    <div id="moves"><div class="empty">Watching&hellip;</div></div>
+  </div>
+  <div class="card">
+    <h2>What is moving the world</h2>
+    <div class="sub">People, oil, wars and money news that can push gold around. Filtered to what actually matters for gold.</div>
+    <div class="filt" id="filt">
+      <button class="on" onclick="setCat(this,'all')">Everything</button>
+      <button onclick="setCat(this,'person')">People</button>
+      <button onclick="setCat(this,'oil')">Oil</button>
+      <button onclick="setCat(this,'war')">War</button>
+      <button onclick="setCat(this,'money')">Money</button>
+    </div>
+    <div id="social"><div class="empty">Loading&hellip;</div></div>
+  </div>
+  <div class="card">
+    <h2>Gold news right now</h2>
+    <div class="sub">Filtered down to things that actually affect the gold price.</div>
+    <div id="news"><div class="empty">Loading&hellip;</div></div>
+  </div>
+ </div>
+ <div>
+  <div class="card">
+    <h2>Trading clock</h2>
+    <div class="sub">Gold is quiet in Asia and wild when London and New York are both open.</div>
+    <div id="sess"></div>
+    <div class="nextev" id="nextev"></div>
+    <h2 style="margin-top:16px">When gold actually moves</h2>
+    <div class="sub" id="volsub">Measured from your own 1-minute data.</div>
+    <div class="volchart" id="volchart"></div>
+  </div>
+  <div class="card">
+    <h2>Day trading view</h2>
+    <div class="sub">Gold's three closest relationships, and where price sits in today's range.</div>
+    <div id="peers"></div>
+    <div class="rangebar"><div class="rangepos" id="rpos"></div></div>
+    <div class="rangelbl"><span id="rlo">low</span><span id="rhi">high</span></div>
+    <div class="dstory" id="dstory"></div>
+  </div>
+  <div class="card" id="chatcard">
+    <h2>Ask about gold</h2>
+    <div class="sub">Type a question. It answers from the live data on this page. <span id="bk"></span></div>
+    <div class="chatlog" id="chatlog">
+      <div class="msg bot">Hi. Ask me anything about gold and I will explain it simply.</div>
+    </div>
+    <div class="chips" id="chips">
+      <button onclick="askQ('Why is gold moving?')">Why is gold moving?</button>
+      <button onclick="askQ('What is coming up?')">What is coming up?</button>
+      <button onclick="askQ('What did Trump say?')">What did Trump say?</button>
+      <button onclick="askQ('What is inflation?')">What is inflation?</button>
+    </div>
+    <div class="keyrow">
+  <input id="keybox" type="password" placeholder="Paste your free Groq key (stays in this browser)"
+         autocomplete="off" spellcheck="false">
+  <button onclick="gwSetKey(E('keybox').value)">Save</button>
+</div>
+<div class="keynote"><span id="keystate">no key yet</span>
+  &middot; <a href="https://console.groq.com/keys" target="_blank" rel="noopener">get a free key</a>
+  &middot; <a href="#" onclick="gwForget();return false;">forget it</a></div>
+<div class="chatrow">
+      <input id="qbox" placeholder="Ask a question..." autocomplete="off"
+             onkeydown="if(event.key==='Enter')send()">
+      <button onclick="send()" id="sendbtn">Send</button>
+    </div>
+    <div class="askhint"><a href="#" onclick="openAsk();return false;" style="color:#6b7280">Or copy everything as text &rarr;</a></div>
+  </div>
+  <div class="card">
+    <h2>Which way is gold leaning?</h2>
+    <div class="sub">A simple score built from what is happening right now.</div>
+    <div class="bias" id="bias">&mdash;</div>
+    <div class="biasbar"><div class="needle" id="ndl" style="left:calc(50% - 1.5px)"></div></div>
+    <div class="ends"><span>Going down</span><span>Going up</span></div>
+    <div style="margin-top:14px" id="bwhy"></div>
+    <div class="spark" id="spark"></div>
+  </div>
+  <div class="card">
+    <h2>Big US reports coming</h2>
+    <div class="sub">These can move gold within seconds of being released.</div>
+    <div id="cal"><div class="empty">Loading&hellip;</div></div>
+  </div>
+  <div class="note">This shows what was in the news around a move. It does not prove
+  the news caused it. Always read the actual headline, not just the score.<br><br>
+  Free public data. Not financial advice.</div>
+ </div>
+</div></div>
+
+<div class="modal" id="modal">
+  <div class="mbox">
+    <h3>Ask Claude about gold right now</h3>
+    <p>Everything on the page, written out as a question. Copy it and paste it into Claude.</p>
+    <textarea id="brief" readonly></textarea>
+    <div class="mrow">
+      <button class="copy" id="cbtn" onclick="copyBrief()">Copy to clipboard</button>
+      <button class="close" onclick="E('modal').classList.remove('on')">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+// Null-safe element lookup. Before this, one mistyped or missing id threw inside
+// render() and every panel BELOW that line silently stayed on "Loading...".
+// A broken panel should cost one panel, not the page.
+const _stub={style:{},classList:{add(){},remove(){}},textContent:'',innerHTML:'',
+             removeAttribute(){},setAttribute(){},select(){},focus(){},value:'',
+             appendChild(){},remove(){},offsetWidth:0,scrollTop:0,scrollHeight:0};
+function E(id){return document.getElementById(id)||_stub;}
+const ago=m=>m>0?m+" min before":(m<0?(-m)+" min after":"same minute");
+function cd(ts){const s=ts-Date.now()/1000;if(s<0)return"done";
+  const h=Math.floor(s/3600),m=Math.floor(s%3600/60);
+  return h>24?Math.floor(h/24)+" days":(h?h+"h "+m+"m":m+" min");}
+
+async function openAsk(){
+  const m=E('modal'); m.classList.add('on');
+  E('brief').value='Building...';
+  try{ E('brief').value=LAST.brief||'(not available)'; }
+  catch(e){ E('brief').value='Could not build the briefing.'; }
+}
+async function copyBrief(){
+  const t=E('brief'), b=E('cbtn');
+  try{ await navigator.clipboard.writeText(t.value); }
+  catch(e){ t.removeAttribute('readonly'); t.select(); document.execCommand('copy');
+            t.setAttribute('readonly',''); }
+  b.textContent='Copied - now paste it into Claude';
+  setTimeout(()=>b.textContent='Copy to clipboard',2600);
+}
+
+function md(t){return esc(t)
+  .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
+  .replace(/\*(.+?)\*/g,'<i>$1</i>')
+  .replace(/^- /gm,'&bull; ')
+  .replace(/^---$/gm,'<hr style="border:0;border-top:1px solid #242b38;margin:8px 0">');}
+function bubble(cls,txt){
+  const l=E('chatlog');
+  const d=document.createElement('div'); d.className='msg '+cls; d.innerHTML=md(txt);
+  l.appendChild(d); l.scrollTop=l.scrollHeight; return d;}
+function askQ(q){E('qbox').value=q;send();}
+
+
+// ---------------------------------------------------------------- live price
+// data.json is rebuilt every few minutes, which is fine for headlines and
+// useless for a price. So the price comes straight from the source, in this
+// browser, every 10 seconds. No server sits in the middle -- which is also why
+// this does not get slower as more people open the page.
+var LAST = {};              // the last built payload, shared with the chat
+var LIVEPX = null;
+
+async function tickPrice(){
+  try{
+    const r = await fetch('https://api.gold-api.com/price/XAU', {cache:'no-store'});
+    if(!r.ok) return;
+    const j = await r.json();
+    const p = parseFloat(j.price);
+    if(!isFinite(p)) return;
+    LIVEPX = p;
+    paintLive();
+  }catch(e){ /* offline or blocked: the last built price stays on screen */ }
+}
+
+function paintLive(){
+  if(LIVEPX === null) return;
+  const el = E('px');
+  const shown = parseFloat(String(el.textContent).replace(/[^0-9.]/g,''));
+  el.textContent = '$' + LIVEPX.toLocaleString(undefined,{minimumFractionDigits:2});
+  if(isFinite(shown) && Math.abs(shown - LIVEPX) > 0.001){
+    el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  }
+  // recompute the day's change against the previous close from the last build
+  const pc = LAST.prev_close;
+  if(pc){
+    const d = LIVEPX - pc, pct = (d/pc)*100, up = d >= 0;
+    E('chg').innerHTML = '<span class="'+(up?'up':'dn')+'">'+(up?'+$':'-$')+
+      Math.abs(d).toFixed(1)+' ('+(up?'+':'')+pct.toFixed(2)+'%)</span>'+
+      '<span style="color:#5f6368;font-weight:400"> since yesterday</span>';
+  }
+  E('st').textContent = 'live';
+  E('dot').style.background = '#00d4aa';
+}
+
+// How old is the pre-built half? Stated plainly: a page that looks live while
+// showing twenty-minute-old headlines is worse than one that admits it.
+function paintFreshness(d){
+  const el = E('upd'); if(!d || !d.built_epoch) return;
+  const mins = Math.max(0, Math.round((Date.now()/1000 - d.built_epoch)/60));
+  let s;
+  if(mins < 1)        s = 'news updated just now';
+  else if(mins < 2)   s = 'news updated a minute ago';
+  else if(mins < 60)  s = 'news updated ' + mins + ' minutes ago';
+  else { const h = Math.round(mins/60);
+         s = 'news updated ' + h + (h===1?' hour':' hours') + ' ago'; }
+  el.textContent = s;
+  el.style.color = mins > 25 ? '#ffb86b' : '';
+}
+
+// ------------------------------------------------------------------ the chat
+// There is no server here, so there is nowhere to keep a shared API key -- and
+// putting one in the page would mean shipping a private credential to everyone
+// and letting any visitor spend it. So each person brings their own free key.
+// It is kept in their own browser, sent to Groq and to nobody else.
+function gwKey(){ try{ return localStorage.getItem('gw_key')||''; }catch(e){ return ''; } }
+function gwSetKey(k){
+  try{ localStorage.setItem('gw_key', k.trim()); }catch(e){}
+  paintKeyState();
+}
+function paintKeyState(){
+  const b = E('keystate'); if(!b) return;
+  const k = gwKey();
+  b.textContent = k ? ('key saved · •••' + k.slice(-4)) : 'no key yet';
+  b.style.color = k ? '#00d4aa' : '#5f6368';
+  const inp = E('keybox'); if(inp && k) inp.value = '';
+}
+function gwForget(){
+  try{ localStorage.removeItem('gw_key'); }catch(e){}
+  paintKeyState();
+  bubble('bot','Key removed from this browser.');
+}
+
+const GW_SYSTEM = "You are a market analyst talking to a day trader who trades gold on very short timeframes. He is looking at the same dashboard you are, so he can ALREADY SEE the price, the percentages and the headlines.\n\nDO NOT read the numbers back to him. Listing what the price is, what the high and low were, or repeating a headline is worthless -- he can see all of that. If your answer could have been written by someone just reading the screen aloud, it is a failed answer.\n\nYour job is to say what those numbers MEAN together:\n- What is unusual or out of line here? Gold has close relationships with the dollar, with bond yields and with silver. When one of them disagrees with gold, that disagreement is the story. Name it.\n- What does the COMBINATION imply that no single number shows on its own?\n- What is the single most important thing driving this right now, and what is just noise?\n- What would have to happen for this read to be wrong?\n\nRules:\n- Simple words, real thinking. Explain any term in the same sentence you use it. Simple language does NOT mean a shallow answer.\n- Lead with the most interesting thing, not with context.\n- Be willing to say 'this looks odd' or 'these two things contradict'.\n- If the data genuinely does not support a conclusion, say exactly what is missing and where he could get it. Never invent numbers or events.\n- Never tell him to buy or sell. Explain what the picture shows instead.\n- Short paragraphs and bullets. No tables or headings. Under 220 words.\n\n";
+const GW_NOKEY =
+  'The chat needs your own free key from Groq. It takes a minute and costs nothing.\n\n'
++ '- Go to **console.groq.com/keys**\n'
++ '- Sign in and create a key\n'
++ '- Paste it into the box above\n\n'
++ 'The key is stored only in this browser. It goes to Groq and to nobody else '
++ '— there is no server behind this page to send it to.';
+
+async function send(){
+  const box=E('qbox'), btn=E('sendbtn');
+  const q=box.value.trim(); if(!q)return;
+  box.value=''; btn.disabled=true; bubble('me',q);
+  const key = gwKey();
+  if(!key){ bubble('bot', GW_NOKEY); btn.disabled=false; box.focus(); return; }
+  const th=bubble('bot think','thinking...');
+  try{
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+      body: JSON.stringify({
+        model:'openai/gpt-oss-120b',
+        messages:[{role:'system', content: GW_SYSTEM + '\n\n' + (LAST.brief||'')},
+                  {role:'user',   content: q}],
+        temperature:0.4, max_tokens:700
+      })
+    });
+    const j = await r.json();
+    th.remove();
+    if(!r.ok){
+      const m = (j && j.error && j.error.message) ? j.error.message : ('HTTP '+r.status);
+      bubble('bot', r.status===401
+        ? 'That key was rejected. Check it was copied whole, then paste it again.'
+        : ('Groq said: '+m));
+    } else {
+      bubble('bot', j.choices[0].message.content.trim());
+      E('bk').textContent='(groq, your key)';
+    }
+  }catch(e){ th.remove(); bubble('bot','Could not reach Groq ('+e.message+').'); }
+  btn.disabled=false; box.focus();
+}
+
+let CAT='all';
+function setCat(b,c){CAT=c;document.querySelectorAll('.filt button').forEach(x=>x.classList.remove('on'));b.classList.add('on');render();}
+let lastPx=null;
+async function render(){
+  let d; try{ d=await (await fetch('data.json?t='+Date.now(),{cache:'no-store'})).json(); }
+  catch(e){ E('st').textContent='disconnected';
+            E('dot').style.background='#ff3b30'; return; }
+
+  LAST=d;
+  E('st').textContent=d.status==='live'?'live':d.status;
+  E('dot').style.background=d.status==='live'?'#00d4aa':'#ff9500';
+  paintFreshness(d);
+  E('cnt').textContent=d.n_news+' headlines, '+(d.social||[]).length+' posts';
+
+  const pxEl=E('px');
+  pxEl.textContent=d.price?('$'+d.price.toLocaleString(undefined,{minimumFractionDigits:2})):'—';
+  if(lastPx!==null&&d.price!==lastPx){pxEl.classList.remove('flash');void pxEl.offsetWidth;pxEl.classList.add('flash');}
+  lastPx=d.price;
+  if(LIVEPX!==null) paintLive();
+  const up=d.chg>=0;
+  E('chg').innerHTML='<span class="'+(up?'up':'dn')+'">'+(up?'+$':'-$')+
+    Math.abs(d.chg)+' ('+(up?'+':'')+d.chg_pct+'%)</span>'+
+    '<span style="color:#5f6368;font-weight:400"> since yesterday</span>';
+
+  E('lead').innerHTML='<b>'+esc(d.bias_plain||'')+'</b> '+esc(d.bias_because||'');
+  E('errbox').innerHTML=(d.errors||[]).length?
+    '<div class="err">Some data is temporarily unavailable: '+d.errors.map(esc).join(' &middot; ')+
+    '. It retries by itself.</div>':'';
+
+  const ss=d.sessions||{};
+  E('sess').innerHTML=(ss.list||[]).map(function(x){
+    return '<div class="ses'+(x.on?' on':'')+'"><span class="nm">'+
+      '<span class="pill2'+(x.on?'':' off')+'">'+(x.on?'OPEN':'shut')+'</span>'+
+      esc(x.name)+'</span><span class="nt">'+esc(x.note)+'</span></div>';}).join('');
+  E('nextev').textContent=ss.next?
+    ('Next: '+ss.next.what+' in '+ss.next.mins+' minutes'):'';
+
+  const hv=d.hourly||[];
+  if(hv.length){
+    const mx=Math.max.apply(null,hv.map(r=>r.avg))||1;
+    E('volchart').innerHTML=hv.map(function(r){
+      return '<div class="volbar'+(r.avg>=mx*0.85?' pk':'')+'" style="height:'+
+        Math.max(4,r.avg/mx*100)+'%" title="'+r.hour+':00 SGT — '+r.avg+' pips per minute"></div>';
+      }).join('')+'';
+    const d0=hv[0].days||0;
+    E('volsub').innerHTML='Average movement per minute, by hour (your time). '+
+      'Tallest bar = most movement.<br><span style="color:#ff9f0a">Only '+d0+
+      ' days of data, and it includes a Fed decision — one big event can make an hour look busier than it usually is.</span>';
+  }
+
+  const pe=d.headline_events||[];
+  E('pinned').style.display=pe.length?'block':'none';
+  E('pinnedlist').innerHTML=pe.map(function(n,i){
+    return '<div class="pn"><span class="rank">'+(i+1)+'</span>'+
+      (n.link?'<a href="'+esc(n.link)+'" target="_blank" style="color:#dfe3e8;text-decoration:none">':'<span style="color:#dfe3e8">')+
+      esc(n.title)+(n.link?'</a>':'</span>')+
+      '<div class="eff" style="margin-left:20px">'+esc(n.effect||'')+'</div></div>';}).join('');
+
+  const pr=d.peers||{};
+  E('peers').innerHTML=Object.keys(pr).length?Object.keys(pr).map(function(k){
+    const v=pr[k], up=v.pct>=0;
+    return '<div class="pr"><span class="lbl">'+esc(v.label)+'</span><span class="val">'+v.px+
+      ' <span class="'+(up?'up':'dn')+'">'+(up?'+':'')+v.pct+'%</span></span></div>';}).join('')
+    :'<div class="empty">Loading related markets...</div>';
+  const lv=d.levels||{};
+  if(lv.day_high){
+    E('rpos').style.left='calc('+lv.pos_pct+'% - 1.5px)';
+    E('rlo').textContent='low $'+lv.day_low+'  (+$'+lv.from_low+')';
+    E('rhi').textContent='($'+lv.from_high+' away)  high $'+lv.day_high;
+  }
+  E('dstory').textContent=d.dollar_story||'';
+
+  E('bias').textContent=d.bias;
+  E('bias').style.color=d.bias_colour;
+  E('ndl').style.left='calc('+(50+d.bias_score*10)+'% - 1.5px)';
+  E('bwhy').innerHTML=(d.bias_why||[]).map(function(w){
+    const nm={'vs prev close':'Compared with yesterday','last hour trend':'Last hour',
+              'news tone (6h)':'Today\'s news','event risk':'Watch out for'}[w.factor]||w.factor;
+    return '<div class="f"><span class="n">'+esc(nm)+'</span><span class="d">'+esc(w.detail)+'</span></div>';
+  }).join('');
+
+  const sp=d.bars||[];
+  if(sp.length>2){const cs=sp.map(b=>b.c),lo=Math.min.apply(null,cs),hi=Math.max.apply(null,cs),rg=(hi-lo)||1;
+    E('spark').innerHTML=sp.map(function(b,i){
+      const h=8+((b.c-lo)/rg)*92, c=i>0&&b.c>=sp[i-1].c?'#00d4aa':'#ff3b30';
+      return '<div style="height:'+h+'%;background:'+c+';opacity:.72"></div>';}).join('');}
+
+  E('moves').innerHTML=(d.moves||[]).length?d.moves.map(function(m){
+    const col=m.dir==='up'?'#00d4aa':'#ff3b30';
+    const c=(m.why||[]).length?m.why.map(function(x){
+      return '<div class="cand"><div class="ct">'+
+        (x.link?'<a href="'+esc(x.link)+'" target="_blank">'+esc(x.title)+'</a>':esc(x.title))+'</div>'+
+        '<div class="ctm">'+esc(x.src)+' &middot; '+x.time+' SGT &middot; '+ago(x.mins)+'</div>'+
+        (x.effect?'<div class="eff">'+esc(x.effect)+'</div>':'')+'</div>';}).join('')
+      :'<div class="cand"><div class="ctm">Nothing was in the news then, so this was probably just normal buying and selling.</div></div>';
+    return '<div class="mv" style="border-color:'+col+'"><div class="mvt">'+esc(m.plain||'')+
+      '<br><span class="ctm">'+m.time+' SGT &middot; $'+m.from+' to $'+m.to+'</span></div>'+c+'</div>';
+  }).join(''):'<div class="empty">Gold has been moving normally, no sudden jumps to explain.</div>';
+
+  const items=(d.social||[]).filter(p=>CAT==='all'||p.cat===CAT);
+  E('social').innerHTML=items.length?items.slice(0,10).map(function(p){
+    return '<div class="post"><span class="cat '+esc(p.cat||'person')+'">'+esc(p.cat||'news')+'</span>'+
+    '<span class="who">'+esc(p.who)+'</span> '+
+    '<span class="ctm">&middot; '+esc(p.where)+' &middot; '+p.time+' SGT</span>'+
+    '<div class="ptxt">'+(p.link?'<a href="'+esc(p.link)+'" target="_blank" style="color:inherit;text-decoration:none">':'')+
+    esc(p.text)+(p.link?'</a>':'')+'</div>'+
+    (p.effect?'<div class="eff">'+esc(p.effect)+'</div>':'')+'</div>';}).join('')
+    :'<div class="empty">Nothing in this category right now.</div>';
+
+  E('news').innerHTML=(d.news||[]).length?d.news.slice(0,12).map(function(n){
+    return '<div class="hl"><div class="hlh">'+n.time+' SGT &middot; '+esc(n.src)+'</div>'+
+    (n.link?'<a href="'+esc(n.link)+'" target="_blank" style="color:#dfe3e8;text-decoration:none">':'<span style="color:#dfe3e8">')+
+    esc(n.title)+(n.link?'</a>':'</span>')+
+    (n.effect?'<div class="eff">'+esc(n.effect)+'</div>':'')+'</div>';}).join('')
+    :'<div class="empty">No gold news right now.</div>';
+
+  const now=Date.now()/1000;
+  const ev=(d.calendar||[]).filter(c=>c.ts>now-1800).slice(0,6);
+  E('cal').innerHTML=ev.length?ev.map(function(c){
+    return '<div class="ev"><span><span class="'+(c.impact==='High'?'hi':'med')+'">'+
+    (c.impact==='High'?'BIG':'MEDIUM')+'</span> '+esc(c.title)+'</span>'+
+    '<span class="cd">'+esc(c.date.split(' ').slice(0,2).join(' '))+' '+c.time+
+    '<br><span style="color:#5f6368">in '+cd(c.ts)+'</span></span></div>';}).join('')
+    :((d.errors||[]).some(e=>e.indexOf('calendar')===0)
+      ? '<div class="empty">Cannot load the calendar right now. That is different from nothing being scheduled. It retries automatically.</div>'
+      : '<div class="empty">Nothing scheduled.</div>');
+}
+render();
+tickPrice(); setInterval(tickPrice, 10000); paintKeyState();
+setInterval(render, 5000);
+</script></body></html>
