@@ -79,8 +79,8 @@ def collect():
     # candles to every visitor is a megabyte of nothing -- trim it here, where
     # it costs one machine instead of all of them.
     bars = state.get("bars") or []
-    if len(bars) > 400:
-        state["bars"] = bars[-400:]
+    if len(bars) > 1440:
+        state["bars"] = bars[-1440:]      # one full trading day of minutes
     return state
 
 
@@ -214,6 +214,182 @@ async function send(){
 }
 """
 
+
+CHART_JS = r"""
+// ---------------------------------------------------------------------- chart
+// Candles come from the build (Yahoo blocks browsers, so they cannot be fetched
+// here), and the right-hand edge is kept live by the same 10-second spot tick
+// that drives the price at the top. So the history is up to ~5 minutes old and
+// the candle currently forming is always current -- which is the half that
+// matters when you are watching a 1-minute chart.
+var CHART=null, SERIES=null, VIEW=[], HI=null, LO=null;
+var TF = (function(){ try{ return parseInt(localStorage.getItem('gw_tf'))||1; }
+                      catch(e){ return 1; } })();
+
+// Lightweight Charts renders a unix timestamp as UTC. Shifting by the viewer's
+// own offset makes the axis read in THEIR local time -- which matters now that
+// this is not one person's dashboard. Singapore, London and New York each see
+// their own clock without the page knowing where anyone is.
+var TZ = -(new Date().getTimezoneOffset()) * 60;
+
+function aggregate(bars, tfMin){
+  const span = tfMin*60, out = [];
+  let cur = null;
+  for(const b of bars){
+    const bucket = Math.floor(b.t/span)*span;
+    if(!cur || cur.time !== bucket + TZ){
+      if(cur) out.push(cur);
+      cur = {time: bucket + TZ, open:b.o, high:b.h, low:b.l, close:b.c};
+    } else {
+      if(b.h > cur.high) cur.high = b.h;
+      if(b.l < cur.low)  cur.low  = b.l;
+      cur.close = b.c;
+    }
+  }
+  if(cur) out.push(cur);
+  return out;
+}
+
+function initChart(){
+  const el = E('chart');
+  if(!el || el === _stub || !window.LightweightCharts || CHART) return;
+  CHART = LightweightCharts.createChart(el, {
+    width: el.clientWidth, height: el.clientHeight,
+    layout:{ background:{color:'transparent'}, textColor:'#8b919a',
+             fontFamily:'-apple-system,BlinkMacSystemFont,system-ui,sans-serif', fontSize:11 },
+    grid:{ vertLines:{color:'#161b24'}, horzLines:{color:'#161b24'} },
+    rightPriceScale:{ borderColor:'#242b38', scaleMargins:{top:0.12, bottom:0.12} },
+    timeScale:{ borderColor:'#242b38', timeVisible:true, secondsVisible:false,
+                rightOffset:3 },
+    crosshair:{ mode: LightweightCharts.CrosshairMode.Normal,
+                vertLine:{color:'#3a4150', labelBackgroundColor:'#1f2632'},
+                horzLine:{color:'#3a4150', labelBackgroundColor:'#1f2632'} },
+    localization:{ priceFormatter: function(p){ return '$'+p.toFixed(2); } },
+    handleScale:{ axisPressedMouseMove:{time:true, price:false} }
+  });
+  SERIES = CHART.addCandlestickSeries({
+    upColor:'#00d4aa', downColor:'#ff3b30',
+    borderUpColor:'#00d4aa', borderDownColor:'#ff3b30',
+    wickUpColor:'#00d4aa', wickDownColor:'#ff3b30',
+    priceLineColor:'#ffd479'
+  });
+  // Follow the container rather than the window: the card is a grid child, so
+  // it can change width when the page reflows without the window resizing.
+  if(window.ResizeObserver){
+    new ResizeObserver(function(){
+      if(CHART && el.clientWidth) CHART.resize(el.clientWidth, el.clientHeight);
+    }).observe(el);
+  }
+  drawChart();
+}
+
+function drawChart(){
+  if(!SERIES || !LAST.bars || !LAST.bars.length) return;
+  VIEW = aggregate(LAST.bars, TF);
+  SERIES.setData(VIEW);
+
+  // yesterday's close and today's range, as lines -- the levels a day trader
+  // is actually watching, rather than decoration
+  [HI, LO].forEach(function(l){ if(l) SERIES.removePriceLine(l); });
+  HI = LO = null;
+  const lv = LAST.levels || {};
+  // A price line takes part in autoscaling, so drawing today's high when price
+  // is nowhere near it stretches the axis across the whole day's range and
+  // squashes an hour of 1-minute candles into a thin band -- destroying the
+  // detail the chart exists to show. So a level is only drawn once price is
+  // close enough for it to matter; the distance to both is always written
+  // underneath, so nothing is hidden, it just stops wrecking the scale.
+  // axisLabelVisible is off for the same family of reason: an off-screen line
+  // still pins its label to the edge, and the two then overlap in one corner.
+  const near = VIEW.length ? VIEW[VIEW.length-1].close : 0;
+  const close_enough = function(v){ return near && Math.abs(v-near)/near < 0.006; };
+  if(lv.day_high && close_enough(lv.day_high))
+    HI = SERIES.createPriceLine({price:lv.day_high, color:'#4a5160',
+      lineWidth:1, lineStyle:2, axisLabelVisible:false, title:"today's high"});
+  if(lv.day_low && close_enough(lv.day_low))
+    LO = SERIES.createPriceLine({price:lv.day_low, color:'#4a5160',
+      lineWidth:1, lineStyle:2, axisLabelVisible:false, title:"today's low"});
+
+  CHART.timeScale().fitContent();
+  const n = Math.min(VIEW.length, TF === 1 ? 120 : 90);
+  if(VIEW.length > n){
+    CHART.timeScale().setVisibleLogicalRange({from: VIEW.length - n, to: VIEW.length + 3});
+  }
+  paintChartLabel();
+}
+
+// Keep the forming candle current from the live spot price.
+function tickChart(){
+  if(!SERIES || LIVEPX === null || !VIEW.length) return;
+  const span = TF*60;
+  const bucket = Math.floor(Date.now()/1000/span)*span + TZ;
+  const last = VIEW[VIEW.length-1];
+  if(bucket < last.time) return;            // update() cannot go backwards
+  if(bucket === last.time){
+    last.close = LIVEPX;
+    if(LIVEPX > last.high) last.high = LIVEPX;
+    if(LIVEPX < last.low)  last.low  = LIVEPX;
+  } else {
+    VIEW.push({time:bucket, open:LIVEPX, high:LIVEPX, low:LIVEPX, close:LIVEPX});
+  }
+  SERIES.update(VIEW[VIEW.length-1]);
+}
+
+function setTF(mins, btn){
+  TF = mins;
+  try{ localStorage.setItem('gw_tf', String(mins)); }catch(e){}
+  document.querySelectorAll('.tfbtn').forEach(function(b){ b.classList.remove('on'); });
+  if(btn) btn.classList.add('on');
+  drawChart();
+  tickChart();
+}
+
+function paintChartLabel(){
+  const el = E('chartnote'); if(!el) return;
+  const mins = LAST.built_epoch
+    ? Math.max(0, Math.round((Date.now()/1000 - LAST.built_epoch)/60)) : null;
+  let s = 'Each candle is ' + (TF===1?'1 minute':TF+' minutes')
+    + '. The one on the right is forming now, live. '
+    + (mins === null ? '' : 'Earlier candles were last refreshed '
+        + (mins < 1 ? 'seconds' : mins + (mins===1?' minute':' minutes')) + ' ago.');
+  const lv = LAST.levels || {}, near = VIEW.length ? VIEW[VIEW.length-1].close : 0;
+  if(lv.day_high && lv.day_low && near){
+    const up = ((lv.day_high-near)/near*100), dn = ((near-lv.day_low)/near*100);
+    s += "\nToday's highest was $" + lv.day_high.toFixed(2) + ' ('
+       + (up<=0 ? 'we are at it now' : up.toFixed(2)+'% above here')
+       + "), lowest was $" + lv.day_low.toFixed(2) + ' ('
+       + (dn<=0 ? 'we are at it now' : dn.toFixed(2)+'% below here') + ').';
+  }
+  if(LAST.basis){
+    s += '\nCandle shapes come from gold futures, shifted onto the spot price '
+       + '(they normally sit about $' + Math.abs(LAST.basis).toFixed(0)
+       + ' apart) so the chart lines up with the number at the top.';
+  }
+  el.textContent = s;
+}
+"""
+
+CHART_HTML = """<div class="card" id="chartcard">
+  <h2>The chart</h2>
+  <div class="filt tfrow">
+    <button class="tfbtn" onclick="setTF(1,this)">1 min</button>
+    <button class="tfbtn" onclick="setTF(5,this)">5 min</button>
+    <button class="tfbtn" onclick="setTF(15,this)">15 min</button>
+  </div>
+  <div id="chart"></div>
+  <div class="sub" id="chartnote"></div>
+</div>
+"""
+
+CHART_CSS = """
+#chartcard h2{margin-bottom:10px}
+#chart{width:100%;height:320px}
+.tfrow{margin-bottom:10px}
+#chartnote{margin-top:9px;font-size:11.5px;color:#5f6368;line-height:1.55;white-space:pre-line}
+@media(max-width:640px){ #chart{height:250px} }
+"""
+
+
 # The key box, injected above the chat input.
 KEY_HTML = """<div class="keyrow">
   <input id="keybox" type="password" placeholder="Paste your free Groq key (stays in this browser)"
@@ -296,7 +472,27 @@ def make_page(system_prompt):
 
     # 8. the key box and its styling
     swap('<div class="chatrow">', KEY_HTML + '<div class="chatrow">', "key box")
-    swap("</style>", KEY_CSS + "</style>", "key css")
+    swap("</style>", KEY_CSS + CHART_CSS + "</style>", "key css")
+
+    # 9. the chart: markup under the summary line, code before render(), and the
+    #    library served from this site rather than a third-party CDN so the page
+    #    cannot be broken by someone else's outage
+    swap('<div class="card" id="pinned"', CHART_HTML + '<div class="card" id="pinned"',
+         "chart markup")
+    swap("let CAT='all';", CHART_JS + "\nlet CAT='all';", "chart js")
+    swap("</head>", '<script src="lightweight-charts.js"></script></head>', "chart lib")
+    # (no leading indent: this line is the OUTPUT of transform 3, which replaced
+    #  a column-zero statement, not a nested one)
+    swap("tickPrice(); setInterval(tickPrice, 10000); paintKeyState();",
+         "tickPrice(); setInterval(tickPrice, 10000); paintKeyState();\n"
+         "initChart();\n"
+         "document.querySelectorAll('.tfbtn').forEach(function(b){\n"
+         "  if(parseInt(b.textContent)===TF) b.classList.add('on'); });",
+         "chart boot")
+    # redraw when a new build lands, and keep the forming candle live
+    swap("  LAST=d;\n", "  LAST=d;\n  initChart(); drawChart();\n", "chart redraw")
+    swap("    paintLive();\n  }catch(e)", "    paintLive(); tickChart();\n  }catch(e)",
+         "chart live tick")
 
     # 9. relative paths: the site lives in a subfolder, not at the domain root
     html = html.replace('href="/manifest.json"', 'href="manifest.json"')

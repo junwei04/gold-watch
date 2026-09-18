@@ -268,11 +268,45 @@ def fetch_price():
         spot = spot or r["meta"].get("regularMarketPrice")
         ts, q = r["timestamp"], r["indicators"]["quote"][0]
         for i, t in enumerate(ts):
-            if q["close"][i] is not None:
-                bars.append({"t": t, "c": q["close"][i]})
+            c = q["close"][i]
+            if c is None:
+                continue
+            # Open/high/low as well as close: a candle chart needs all four, and
+            # a close-only series cannot show the wicks -- which is most of what
+            # a 1-minute chart is read for. Yahoo occasionally nulls one leg of
+            # an otherwise good bar, so each falls back to the close rather than
+            # throwing the bar away.
+            bars.append({"t": t, "c": c,
+                         "o": q["open"][i]  if q["open"][i]  is not None else c,
+                         "h": q["high"][i]  if q["high"][i]  is not None else c,
+                         "l": q["low"][i]   if q["low"][i]   is not None else c})
     except Exception:
         pass
+    # GC=F is not gold. It is the December futures contract, and it trades at a
+    # premium to spot -- about $37 at the time of writing, because you are
+    # buying delivery months away. The headline price here is SPOT XAU/USD, so
+    # plotting the futures candles beside it put the chart $37 away from the
+    # number above it, and made "today's high" a level that does not exist on
+    # the pair anyone actually trades.
+    #
+    # There is no free spot candle feed (Yahoo has no working XAUUSD series), so
+    # the shape comes from futures and is shifted onto spot by the current
+    # basis. The spread moves slowly -- it is interest rates and time to expiry,
+    # not sentiment -- so over a day it is near enough constant, and every bar
+    # keeps its exact shape. The page says it is doing this rather than implying
+    # the candles are raw spot prints.
+    basis = None
+    if bars and spot:
+        basis = round(bars[-1]["c"] - spot, 2)
+        if abs(basis) > 0.5:                  # below that it is just noise
+            for b in bars:
+                for k in ("o", "h", "l", "c"):
+                    b[k] = round(b[k] - basis, 2)
+        else:
+            basis = None
+
     with LOCK:
+        STATE["basis"] = basis
         if spot:
             STATE["price"] = round(spot, 2)
         if prev:
@@ -281,7 +315,7 @@ def fetch_price():
                 STATE["chg"] = round(spot - prev, 2)
                 STATE["chg_pct"] = round((spot - prev) / prev * 100, 2)
         if bars:
-            STATE["bars"] = bars[-400:]
+            STATE["bars"] = bars[-1440:]
             STATE["levels"] = read_levels(bars)
             STATE["sessions"] = sessions_now()
             STATE["hourly"] = hourly_volatility(bars)
