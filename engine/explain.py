@@ -155,6 +155,10 @@ INTENSIFY = [
     # singular forms -- a plural subject takes the bare verb ("prices rise")
     "climb", "surge", "jump", "spike", "rally", "advance", "strengthen",
     "escalate", "intensify", "expand", "accelerate", "rebound", "firm",
+    # and the mirror: worries GROW and MOUNT rather than "rising"
+    "mount", "mounts", "mounted", "mounting", "builds", "building",
+    "grows", "growing", "deepen", "deepens", "deepening", "swells",
+    "swelling", "flare", "flaring", "heats up", "picks up", "gathers",
 ]
 CALM = [
     "falls", "fall", "falling", "fell", "drops", "dropped", "eases", "eased",
@@ -173,6 +177,16 @@ CALM = [
     "slip", "dip", "sink", "tumble", "ease", "cool", "soften", "slow",
     "retreat", "decline", "weaken", "pull back", "pulled back", "pullback",
     "erase", "pare", "trim", "give up",
+    # Things stop being a worry by FADING, not by "falling". This whole family
+    # was missing, so "inflation concerns fade" and "recession fears recede"
+    # scored neutral -- and then whichever stray word was left in the sentence
+    # decided the direction.
+    "fade", "fades", "faded", "fading", "recede", "recedes", "receded",
+    "receding", "subside", "subsides", "subsided", "subsiding", "abate",
+    "abates", "abated", "abating", "wane", "wanes", "waned", "waning",
+    "diminish", "diminishes", "diminished", "dissipate", "dissipates",
+    "dissipated", "ebb", "ebbs", "moderate", "moderates", "moderated",
+    "moderating", "relents", "relented", "settles", "settled", "unwinds",
 ]
 
 # "new zealand dollar", "aussie dollar" -- not the one gold is priced in

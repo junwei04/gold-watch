@@ -41,6 +41,16 @@ CASES = [
     ("Gold rises as the dollar weakens", "US Dollar", -1),
     ("Gold falls as the dollar strengthens", "US Dollar", 1),
     ("Treasury yields extend gains after strong jobs data", "US Treasury", 1),
+    # --- things calm down by FADING, not by "falling" ----------------------
+    ("Gold price today: Gold hits weekly high as inflation concerns fade", "Inflation", -1),
+    ("Inflation concerns fade after soft print", "Inflation", -1),
+    ("Recession fears recede", "recession", -1),
+    ("War worries subside as talks resume", "Middle East conflict", -1),
+    ("Tensions abate along the border", "Middle East conflict", -1),
+    ("Safe haven demand wanes", "safe haven", -1),
+    ("Recession fears mount", "recession", 1),
+    ("Tensions deepen after the strike", "Middle East conflict", 1),
+
     # --- non-currency topics ----------------------------------------------
     ("Russia and Ukraine agreed to a ceasefire", "Russia-Ukraine war", -1),
     ("Israel strikes targets in southern Lebanon", "Middle East conflict", 1),
