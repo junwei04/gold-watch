@@ -1,0 +1,87 @@
+name: refresh data
+
+# Why this exists separately from "build and publish".
+#
+# 1. GitHub's scheduler did not run this repo's */5 cron even once in two
+#    hours. Short intervals are documented as droppable under load, and in
+#    practice */5 is dropped a lot. So a single run here refreshes the data
+#    repeatedly over ~25 minutes instead of trusting the scheduler to come
+#    back promptly. Even a badly delayed schedule then leaves a much smaller
+#    hole, and the cron below asks four times an hour rather than twelve,
+#    at offset minutes, because the top of the hour is the busiest slot.
+#
+# 2. The site cannot be the fast path. GitHub Pages serves every file with
+#    cache-control: max-age=600 AND ignores query strings when caching, so a
+#    rebuilt data.json can still be served ten minutes stale no matter how
+#    often it is written. Writing to a branch instead lets the page read it
+#    from raw.githubusercontent, which caches for 300s -- half the floor, and
+#    with no Pages deployment per refresh.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "2,17,32,47 * * * *"
+  push:
+    branches: [main]
+    paths: [engine/**, build.py, .github/workflows/refresh.yml]
+
+permissions:
+  contents: write
+
+# Overlapping loops would double the commits and gain nothing; a running one
+# is never cancelled, because killing it is what opens a gap.
+concurrency:
+  group: refresh-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 32
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Refresh repeatedly
+        run: |
+          set -u
+          git config user.name  "gold-watch bot"
+          git config user.email "noreply@github.com"
+
+          for i in $(seq 1 6); do
+            echo "--- cycle $i of 6 ---"
+            if python build.py --data-only; then
+              # Sanity-gate each cycle exactly as the publish job does: a build
+              # that fetched nothing still writes a valid file, and pushing it
+              # would replace good data with a convincing-looking blank.
+              if python - <<'PY'
+          import json, sys
+          d = json.load(open("docs/data.json"))
+          sys.exit(0 if d.get("price") and (d.get("n_news") or 0) >= 3 else 1)
+          PY
+              then
+                # A single-commit orphan branch, force-pushed. A normal branch
+                # would gain ~300 commits a day of a 150KB file and bloat the
+                # repo for history nobody will ever read.
+                git checkout --orphan tmp-data
+                git rm -rq --cached . || true
+                cp docs/data.json /tmp/data.json
+                rm -rf docs engine build.py README.md .github .gitignore || true
+                mkdir -p . && cp /tmp/data.json data.json
+                git add -f data.json
+                git commit -qm "data $(date -u +%FT%TZ)"
+                git push -qf origin tmp-data:data
+                git checkout -q --force main
+                git branch -qD tmp-data
+                echo "pushed cycle $i"
+              else
+                echo "cycle $i produced an empty build; keeping the previous data"
+              fi
+            else
+              echo "cycle $i build failed; keeping the previous data"
+            fi
+            [ "$i" -lt 6 ] && sleep 240
+          done
+          echo "loop finished; the schedule or the next push restarts it"
