@@ -2,13 +2,18 @@ name: refresh data
 
 # Why this exists separately from "build and publish".
 #
-# 1. GitHub's scheduler did not run this repo's */5 cron even once in two
-#    hours. Short intervals are documented as droppable under load, and in
-#    practice */5 is dropped a lot. So a single run here refreshes the data
-#    repeatedly over ~25 minutes instead of trusting the scheduler to come
-#    back promptly. Even a badly delayed schedule then leaves a much smaller
-#    hole, and the cron below asks four times an hour rather than twelve,
-#    at offset minutes, because the top of the hour is the busiest slot.
+# 1. GitHub's scheduler cannot be relied on for cadence. Over seven weeks it
+#    ran 499 times -- but in PAIRS separated by four to eight hours, not the
+#    four times an hour requested. A 25-minute refresh loop therefore left a
+#    seven-hour hole behind it, and the data was found 4.6 hours stale.
+#
+#    So the loop now runs for ~5h45m, refreshing every ~5 minutes, which is
+#    just under GitHub's 6-hour ceiling for a single job. Since the scheduler
+#    does fire every 4-8 hours, consecutive runs very nearly meet end to end
+#    and the hole shrinks from hours to minutes. Public repositories get
+#    unlimited Actions minutes, so the long job costs nothing, and the
+#    concurrency group below means a late schedule cannot start a second
+#    overlapping loop.
 #
 # 2. The site cannot be the fast path. GitHub Pages serves every file with
 #    cache-control: max-age=600 AND ignores query strings when caching, so a
@@ -37,7 +42,7 @@ concurrency:
 jobs:
   refresh:
     runs-on: ubuntu-latest
-    timeout-minutes: 32
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -50,8 +55,8 @@ jobs:
           git config user.name  "gold-watch bot"
           git config user.email "noreply@github.com"
 
-          for i in $(seq 1 6); do
-            echo "--- cycle $i of 6 ---"
+          for i in $(seq 1 69); do
+            echo "--- cycle $i of 69 ---"
             if python build.py --data-only; then
               # Sanity-gate each cycle exactly as the publish job does: a build
               # that fetched nothing still writes a valid file, and pushing it
@@ -82,6 +87,6 @@ jobs:
             else
               echo "cycle $i build failed; keeping the previous data"
             fi
-            [ "$i" -lt 6 ] && sleep 240
+            [ "$i" -lt 69 ] && sleep 290
           done
           echo "loop finished; the schedule or the next push restarts it"
