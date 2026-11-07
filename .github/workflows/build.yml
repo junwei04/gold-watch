@@ -1,0 +1,76 @@
+name: build and publish
+
+on:
+  schedule:
+    # Was "*/5". GitHub ran it zero times in two hours: short intervals are
+    # documented as droppable under load and */5 is dropped heavily. This job
+    # only rebuilds the PAGE now -- the data is kept fresh by refresh.yml -- so
+    # twice an hour is plenty, and explicit offset minutes avoid the top of the
+    # hour, which is the most congested slot on the scheduler.
+    - cron: "8,38 * * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+# Deploy straight to Pages from the build output. The obvious alternative --
+# committing docs/ each run -- would add roughly 288 commits a day and turn the
+# history into landfill within a week.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two builds publish at once; do not cancel one already running,
+# because a half-finished deploy is worse than a slightly late one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # No pip install step: the engine is deliberately standard library only,
+      # so there is no dependency that can break this build at 3am.
+
+      - name: Check the direction scorer still agrees with its labelled cases
+        run: python engine/test_polarity.py
+
+      - name: Build the site
+        run: python build.py
+
+      - name: Refuse to publish an empty build
+        run: |
+          python - <<'PY'
+          import json, sys
+          d = json.load(open("docs/data.json"))
+          # A build that fetched nothing still writes a valid file. Publishing it
+          # would replace a good page with an empty one that looks deliberate.
+          if not d.get("price"):
+              sys.exit("no price in build - refusing to publish")
+          if (d.get("n_news") or 0) < 3:
+              sys.exit(f"only {d.get('n_news')} headlines - refusing to publish")
+          print(f"ok: ${d['price']}, {d['n_news']} headlines, "
+                f"{len(d.get('social') or [])} posts")
+          PY
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
