@@ -1,0 +1,1007 @@
+<!doctype html><html><head><meta charset="utf-8">
+<title>Gold Watch</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<meta name="theme-color" content="#0a0c10">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="touch-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Gold Watch">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="format-detection" content="telephone=no">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0a0c10;color:#e8eaed;font:15px/1.6 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;padding:22px}
+.wrap{max-width:1180px;margin:0 auto}
+.card,.lead,.mv,.mbox{overflow-wrap:anywhere}   /* a long unbroken token must wrap, not widen the page */
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;flex-wrap:wrap}
+.brand{font-size:12px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:#6b7280}
+.px{font-size:46px;font-weight:800;letter-spacing:-1.8px;font-variant-numeric:tabular-nums;line-height:1}
+.chg{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;margin-top:5px}
+.up{color:#00d4aa}.dn{color:#ff3b30}
+.meta{font-size:11.5px;color:#5f6368;text-align:right;line-height:1.8}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#00d4aa;margin-right:5px}
+.flash{animation:fl 1s ease}@keyframes fl{0%{color:#ffd479}100%{color:#e8eaed}}
+.lead{background:#12151c;border:1px solid #1e2430;border-left:3px solid #00d4aa;border-radius:11px;padding:15px 18px;margin:18px 0;font-size:16px}
+.lead b{color:#fff}
+.grid{display:grid;grid-template-columns:1fr 360px;gap:18px}
+@media(max-width:960px){.grid{grid-template-columns:1fr}}
+/* ---- phone ------------------------------------------------------------
+   Added once this stopped being a desktop dashboard and became the thing
+   he actually opens: a home-screen app on a ~390pt screen, held one-handed,
+   often at arm's length while a chart is on the other screen. So: thumb-sized
+   tap targets, a price big enough to read without focusing, and safe-area
+   padding so nothing hides under the notch or the home indicator. */
+@supports(padding:max(0px)){
+  body{padding-left:max(14px,env(safe-area-inset-left));
+       padding-right:max(14px,env(safe-area-inset-right));
+       padding-top:max(14px,env(safe-area-inset-top));
+       padding-bottom:max(18px,env(safe-area-inset-bottom))}
+}
+@media(max-width:640px){
+  body{padding:16px 14px 26px;font-size:15.5px}
+  header{align-items:flex-start}
+  .px{font-size:54px;letter-spacing:-2px}      /* bigger, not smaller: it is the one number he reads at a glance */
+  .chg{font-size:17px}
+  .meta{text-align:left;font-size:11px;line-height:1.7}
+  .card{padding:15px 14px;border-radius:14px;margin-bottom:14px}
+  .lead{padding:14px 15px;font-size:16px}
+  h2{font-size:13px}
+  /* Apple's minimum comfortable touch target is 44pt. Anything smaller gets
+     mis-tapped on a moving train, which is where this actually gets read. */
+  .askbtn{padding:16px;font-size:16px;border-radius:12px}
+  .filt button{padding:9px 14px;font-size:13px;border-radius:16px}
+  .chip{padding:9px 13px;font-size:13px}
+  .chatrow input{padding:13px;font-size:16px}   /* 16px stops iOS zooming the page on focus */
+  .chatrow button{padding:13px 16px;font-size:15px}
+  .chatlog{max-height:46vh}
+  .ses .nt{max-width:46%}
+  .cd{font-size:11px}
+  .f,.ev,.pr,.ses{font-size:13px}
+  .volchart{height:50px}
+  .modal{padding:0;align-items:flex-end}
+  .mbox{max-width:100%;border-radius:16px 16px 0 0;max-height:88vh;
+        padding:18px 16px max(18px,env(safe-area-inset-bottom))}
+}
+@media(max-width:380px){
+  .px{font-size:46px}
+  body{padding-left:11px;padding-right:11px}
+}
+.card{background:#12151c;border:1px solid #1e2430;border-radius:13px;padding:18px;margin-bottom:18px}
+h2{font-size:15px;color:#e8eaed;margin-bottom:4px;font-weight:700}
+.sub{font-size:12.5px;color:#6b7280;margin-bottom:14px}
+.bias{font-size:26px;font-weight:800;letter-spacing:-0.6px;margin:2px 0}
+.biasbar{position:relative;height:8px;background:linear-gradient(90deg,#ff3b30,#ff9500,#2a2f3a 46%,#2a2f3a 54%,#34c759,#00d4aa);border-radius:4px;margin:14px 0 6px}
+.needle{position:absolute;top:-4px;width:3px;height:16px;background:#fff;border-radius:2px;box-shadow:0 0 9px rgba(255,255,255,.85);transition:left .7s cubic-bezier(.22,1,.36,1)}
+.ends{display:flex;justify-content:space-between;font-size:10.5px;color:#5f6368;text-transform:uppercase;letter-spacing:1px}
+.f{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #1a1f2a;font-size:12.5px}
+.f:last-child{border:0}.f .n{color:#9aa0a6}.f .d{color:#c8ccd2;font-variant-numeric:tabular-nums}
+.mv{border-left:3px solid;padding:12px 14px;margin-bottom:14px;background:#161a23;border-radius:0 10px 10px 0}
+.mvt{font-size:14.5px;font-weight:600;margin-bottom:9px;color:#e8eaed}
+.cand{padding:8px 0;border-top:1px solid #1e2430;font-size:13.5px}
+.cand:first-of-type{border-top:0}
+.ct{color:#dfe3e8}.ct a{color:inherit;text-decoration:none;border-bottom:1px dotted #3a4150}
+.ctm{color:#6b7280;font-size:11px}
+.eff{color:#7fb8a0;font-size:12.5px;margin-top:3px;line-height:1.5}
+.hl{padding:11px 0;border-bottom:1px solid #1a1f2a}
+.hl:last-child{border:0}
+.hlh{font-size:11px;color:#6b7280;margin-bottom:3px}
+.post{padding:11px 0;border-bottom:1px solid #1a1f2a}
+.post:last-child{border:0}
+.who{font-weight:700;color:#ffd479;font-size:12.5px}
+.ptxt{color:#dfe3e8;font-size:13.5px;margin:3px 0}
+.ev{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #1a1f2a;font-size:13px}
+.ev:last-child{border:0}
+.hi{color:#ff453a;font-weight:700;font-size:9.5px}.med{color:#ff9f0a;font-weight:700;font-size:9.5px}
+.cd{color:#9aa0a6;font-variant-numeric:tabular-nums;font-size:11.5px;white-space:nowrap;text-align:right}
+.empty{color:#5f6368;font-size:13px;padding:12px 0}
+.err{background:#2a1f14;border:1px solid #5a4021;color:#ffb86b;padding:9px 13px;border-radius:9px;margin-bottom:14px;font-size:12px}
+.askbtn{display:block;width:100%;background:#1f6feb;color:#fff;border:0;border-radius:10px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit}
+.askbtn:hover{background:#2d7ff9}.askbtn:active{transform:translateY(1px)}
+.askhint{font-size:11.5px;color:#6b7280;margin-top:8px;line-height:1.6}
+.ses{display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid #1a1f2a;font-size:12.5px}
+.ses:last-of-type{border:0}
+.ses .nm{color:#c8ccd2}
+.ses.on .nm{color:#00d4aa;font-weight:700}
+.ses .nt{color:#5f6368;font-size:11px;text-align:right;max-width:190px}
+.pill2{display:inline-block;font-size:9px;padding:2px 7px;border-radius:9px;background:#0f2a22;color:#00d4aa;font-weight:700;letter-spacing:.5px;margin-right:6px}
+.pill2.off{background:#1a1f2a;color:#4a4f58}
+.nextev{margin-top:11px;font-size:12.5px;color:#ffd479}
+.volchart{display:flex;align-items:flex-end;gap:2px;height:58px;margin-top:10px;overflow:hidden;max-width:100%}
+.volbar{flex:1;min-width:0;background:#1f6feb;border-radius:2px 2px 0 0;position:relative;min-height:2px}
+.volbar.pk{background:#ffd479}
+.vollbl{display:flex;justify-content:space-between;font-size:9.5px;color:#5f6368;margin-top:4px}
+.pn{padding:9px 0;border-bottom:1px solid #1a1f2a;font-size:13.5px}
+.pn:last-child{border:0}
+.pn .rank{display:inline-block;width:20px;color:#ffd479;font-weight:700}
+.pr{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #1a1f2a;font-size:13px}
+.pr:last-of-type{border:0}
+.pr .lbl{color:#9aa0a6}
+.pr .val{font-variant-numeric:tabular-nums;color:#e8eaed}
+.rangebar{position:relative;height:6px;background:#1e2430;border-radius:3px;margin:14px 0 5px}
+.rangepos{position:absolute;top:-4px;width:3px;height:14px;background:#ffd479;border-radius:2px;box-shadow:0 0 8px rgba(255,212,121,.7);transition:left .6s ease}
+.rangelbl{display:flex;justify-content:space-between;font-size:10.5px;color:#5f6368;font-variant-numeric:tabular-nums}
+.dstory{margin-top:12px;font-size:12.5px;color:#7fb8a0;line-height:1.6}
+.filt{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.filt button{background:#1a1f2a;color:#9aa0a6;border:1px solid #242b38;border-radius:14px;padding:5px 11px;font-size:11.5px;cursor:pointer;font-family:inherit}
+.filt button.on{background:#1f6feb;color:#fff;border-color:#1f6feb}
+.cat{display:inline-block;font-size:9px;padding:2px 7px;border-radius:9px;letter-spacing:.6px;text-transform:uppercase;font-weight:700;margin-right:6px}
+.cat.person{background:#2b2416;color:#ffd479}
+.cat.oil{background:#1a2b20;color:#6ee7a0}
+.cat.war{background:#2e1a1a;color:#ff8a8a}
+.cat.money{background:#1a2333;color:#7fb3ff}
+.chatlog{max-height:340px;overflow-y:auto;margin-bottom:10px;padding-right:4px}
+.msg{padding:9px 12px;border-radius:11px;margin-bottom:8px;font-size:13.5px;line-height:1.6;white-space:pre-wrap;word-wrap:break-word}
+.msg.bot{background:#161a23;color:#dfe3e8}
+.msg.me{background:#1f6feb;color:#fff;margin-left:34px}
+.msg b{color:#fff}
+.msg.think{color:#6b7280;font-style:italic}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chips button{background:#1a1f2a;color:#9aa0a6;border:1px solid #242b38;border-radius:14px;padding:5px 10px;font-size:11.5px;cursor:pointer;font-family:inherit}
+.chips button:hover{background:#222836;color:#c8ccd2}
+.chatrow{display:flex;gap:7px}
+#qbox{flex:1;background:#0a0c10;border:1px solid #242b38;border-radius:9px;color:#e8eaed;padding:11px 12px;font-size:14px;font-family:inherit}
+#qbox:focus{outline:none;border-color:#1f6feb}
+#sendbtn{background:#1f6feb;color:#fff;border:0;border-radius:9px;padding:11px 16px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+#sendbtn:disabled{opacity:.5}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:center;justify-content:center;padding:24px;z-index:50}
+.modal.on{display:flex}
+.mbox{background:#12151c;border:1px solid #2a3140;border-radius:14px;max-width:760px;width:100%;max-height:82vh;display:flex;flex-direction:column;padding:20px}
+.mbox h3{font-size:16px;margin-bottom:4px}
+.mbox p{font-size:12.5px;color:#6b7280;margin-bottom:12px}
+textarea{flex:1;min-height:320px;background:#0a0c10;border:1px solid #1e2430;border-radius:9px;color:#c8ccd2;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:13px;resize:none}
+.mrow{display:flex;gap:9px;margin-top:12px}
+.mrow button{flex:1;border:0;border-radius:9px;padding:11px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit}
+.copy{background:#1f6feb;color:#fff}.close{background:#1e2430;color:#c8ccd2}
+/* A flex row of N bars has an intrinsic minimum of N*min-width + (N-1)*gap.
+   With 400 one-minute bars that was 799px, so this one chart silently set the
+   width of the whole page and every line of text ran off the right edge of a
+   phone. min-width:0 lets the bars shrink; overflow:hidden means a future
+   chart with too many points clips itself instead of stretching the page. */
+.spark{display:flex;align-items:flex-end;gap:1px;height:44px;margin-top:12px;overflow:hidden;max-width:100%}
+.spark div{flex:1;min-width:0;border-radius:1px 1px 0 0}
+@media(max-width:840px){.spark{gap:0}}   /* gaps do not shrink; below this they alone would overflow */
+.note{font-size:11px;color:#454a52;line-height:1.7;margin-top:14px}
+
+.keyrow{display:flex;gap:7px;margin-bottom:7px}
+.keyrow input{flex:1;min-width:0;background:#0d1016;border:1px solid #242b38;color:#e8eaed;
+  border-radius:9px;padding:10px 12px;font-size:13px;font-family:inherit}
+.keyrow button{background:#1a1f2a;color:#9aa0a6;border:1px solid #242b38;border-radius:9px;
+  padding:10px 14px;font-size:13px;cursor:pointer;font-family:inherit}
+.keyrow button:hover{background:#242b38;color:#e8eaed}
+.keynote{font-size:11px;color:#5f6368;margin-bottom:11px}
+.keynote a{color:#7fb3ff;text-decoration:none}
+@media(max-width:640px){.keyrow input{font-size:16px}}
+
+#chartcard h2{margin-bottom:10px}
+#chart{width:100%;height:320px}
+.tfrow{margin-bottom:10px}
+#chartnote{margin-top:9px;font-size:11.5px;color:#5f6368;line-height:1.55;white-space:pre-line}
+@media(max-width:640px){ #chart{height:250px} }
+
+#aldet summary{display:flex;justify-content:space-between;align-items:center;gap:10px;
+  cursor:pointer;list-style:none;padding:1px 0}
+#aldet summary::-webkit-details-marker{display:none}
+#aldet summary::after{content:"\203a";color:#5f6368;font-size:20px;line-height:1;
+  transform:rotate(90deg);transition:transform .18s ease;flex:none}
+#aldet[open] summary::after{transform:rotate(-90deg)}
+.alsum{font-size:13px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#9aa0a6}
+.alstate{font-size:11.5px;color:#5f6368;margin-left:auto;margin-right:4px}
+#aldet .sub{margin:11px 0 4px}
+.alrow{display:flex;gap:11px;align-items:flex-start;padding:11px 0;
+  border-bottom:1px solid #1a1f2a;cursor:pointer}
+.alrow:last-of-type{border-bottom:0}
+.alrow input{margin-top:3px;width:18px;height:18px;flex:none;accent-color:#00d4aa;cursor:pointer}
+.alrow b{display:block;font-size:14px;font-weight:600;color:#e8eaed}
+.alrow em{display:block;font-style:normal;font-size:11.5px;color:#5f6368;line-height:1.5;margin-top:2px}
+#alertnote:not(:empty){display:block !important}
+#alertnote:empty{display:none !important}
+</style><script src="lightweight-charts.js"></script></head><body><div class="wrap">
+<header>
+  <div>
+    <div class="brand">Gold Watch &middot; XAU/USD</div>
+    <div class="px" id="px">&mdash;</div>
+    <div class="chg" id="chg"></div>
+  </div>
+  <div class="meta">
+    <span class="dot" id="dot"></span><span id="st">connecting</span><br>
+    <span id="upd"></span><br><span id="cnt"></span>
+  </div>
+</header>
+<div class="lead" id="lead">Loading&hellip;</div>
+<div class="card" id="chartcard">
+  <h2>The chart</h2>
+  <div class="filt tfrow">
+    <button class="tfbtn" onclick="setTF(1,this)">1 min</button>
+    <button class="tfbtn" onclick="setTF(5,this)">5 min</button>
+    <button class="tfbtn" onclick="setTF(15,this)">15 min</button>
+  </div>
+  <div id="chart"></div>
+  <div class="sub" id="chartnote"></div>
+</div>
+<div class="card" id="alertcard">
+  <details id="aldet">
+  <summary><span class="alsum">Tell me when something happens</span>
+    <span class="alstate" id="alertstate">not enabled yet</span></summary>
+  <div class="sub">Alerts appear on this device. Keep the page open, or add it to
+    your home screen so it can run in the background.</div>
+  <label class="alrow"><input type="checkbox" id="al_move" onchange="toggleAlert('move',this)">
+    <span><b>A big move</b><em>Bigger than normal for this time of day, so it stays quiet overnight and speaks up when New York opens.</em></span></label>
+  <label class="alrow"><input type="checkbox" id="al_news" onchange="toggleAlert('news',this)">
+    <span><b>Important news</b><em>Only headlines that reach the top of the list, and only once each.</em></span></label>
+  <label class="alrow"><input type="checkbox" id="al_event" onchange="toggleAlert('event',this)">
+    <span><b>A big report is 15 minutes away</b><em>Jobs numbers, inflation, Fed decisions. Gold usually jumps the second these land.</em></span></label>
+  <label class="alrow"><input type="checkbox" id="al_level" onchange="toggleAlert('level',this)">
+    <span><b>Today's high or low breaks</b><em>Price goes past where it has been all day.</em></span></label>
+  <label class="alrow"><input type="checkbox" id="al_every" onchange="toggleAlert('every',this)">
+    <span><b>Every single refresh</b><em>About 288 times a day. Most people regret this one.</em></span></label>
+  <div class="err" id="alertnote" style="display:none"></div>
+  </details>
+</div>
+<div class="card" id="pinned" style="display:none">
+  <h2>Biggest things right now</h2>
+  <div id="pinnedlist"></div>
+</div>
+<div id="errbox"></div>
+<div class="grid">
+ <div>
+  <div class="card">
+    <h2>Why gold moved</h2>
+    <div class="sub">When gold jumps more than normal, here is what was in the news at that exact moment.</div>
+    <div id="moves"><div class="empty">Watching&hellip;</div></div>
+  </div>
+  <div class="card">
+    <h2>What is moving the world</h2>
+    <div class="sub">People, oil, wars and money news that can push gold around. Filtered to what actually matters for gold.</div>
+    <div class="filt" id="filt">
+      <button class="on" onclick="setCat(this,'all')">Everything</button>
+      <button onclick="setCat(this,'person')">People</button>
+      <button onclick="setCat(this,'oil')">Oil</button>
+      <button onclick="setCat(this,'war')">War</button>
+      <button onclick="setCat(this,'money')">Money</button>
+    </div>
+    <div id="social"><div class="empty">Loading&hellip;</div></div>
+  </div>
+  <div class="card">
+    <h2>Gold news right now</h2>
+    <div class="sub">Filtered down to things that actually affect the gold price.</div>
+    <div id="news"><div class="empty">Loading&hellip;</div></div>
+  </div>
+ </div>
+ <div>
+  <div class="card">
+    <h2>Trading clock</h2>
+    <div class="sub">Gold is quiet in Asia and wild when London and New York are both open.</div>
+    <div id="sess"></div>
+    <div class="nextev" id="nextev"></div>
+    <h2 style="margin-top:16px">When gold actually moves</h2>
+    <div class="sub" id="volsub">Measured from your own 1-minute data.</div>
+    <div class="volchart" id="volchart"></div>
+  </div>
+  <div class="card">
+    <h2>Day trading view</h2>
+    <div class="sub">Gold's three closest relationships, and where price sits in today's range.</div>
+    <div id="peers"></div>
+    <div class="rangebar"><div class="rangepos" id="rpos"></div></div>
+    <div class="rangelbl"><span id="rlo">low</span><span id="rhi">high</span></div>
+    <div class="dstory" id="dstory"></div>
+  </div>
+  <div class="card" id="chatcard">
+    <h2>Ask about gold</h2>
+    <div class="sub">Type a question. It answers from the live data on this page. <span id="bk"></span></div>
+    <div class="chatlog" id="chatlog">
+      <div class="msg bot">Hi. Ask me anything about gold and I will explain it simply.</div>
+    </div>
+    <div class="chips" id="chips">
+      <button onclick="askQ('Why is gold moving?')">Why is gold moving?</button>
+      <button onclick="askQ('What is coming up?')">What is coming up?</button>
+      <button onclick="askQ('What did Trump say?')">What did Trump say?</button>
+      <button onclick="askQ('What is inflation?')">What is inflation?</button>
+    </div>
+    <div class="keyrow">
+  <input id="keybox" type="password" placeholder="Paste your free Groq key (stays in this browser)"
+         autocomplete="off" spellcheck="false">
+  <button onclick="gwSetKey(E('keybox').value)">Save</button>
+</div>
+<div class="keynote"><span id="keystate">no key yet</span>
+  &middot; <a href="https://console.groq.com/keys" target="_blank" rel="noopener">get a free key</a>
+  &middot; <a href="#" onclick="gwForget();return false;">forget it</a></div>
+<div class="chatrow">
+      <input id="qbox" placeholder="Ask a question..." autocomplete="off"
+             onkeydown="if(event.key==='Enter')send()">
+      <button onclick="send()" id="sendbtn">Send</button>
+    </div>
+    <div class="askhint"><a href="#" onclick="openAsk();return false;" style="color:#6b7280">Or copy everything as text &rarr;</a></div>
+  </div>
+  <div class="card">
+    <h2>Which way is gold leaning?</h2>
+    <div class="sub">A simple score built from what is happening right now.</div>
+    <div class="bias" id="bias">&mdash;</div>
+    <div class="biasbar"><div class="needle" id="ndl" style="left:calc(50% - 1.5px)"></div></div>
+    <div class="ends"><span>Going down</span><span>Going up</span></div>
+    <div style="margin-top:14px" id="bwhy"></div>
+    <div class="spark" id="spark"></div>
+  </div>
+  <div class="card">
+    <h2>Big US reports coming</h2>
+    <div class="sub">These can move gold within seconds of being released.</div>
+    <div id="cal"><div class="empty">Loading&hellip;</div></div>
+  </div>
+  <div class="note">This shows what was in the news around a move. It does not prove
+  the news caused it. Always read the actual headline, not just the score.<br><br>
+  Free public data. Not financial advice.</div>
+ </div>
+</div></div>
+
+<div class="modal" id="modal">
+  <div class="mbox">
+    <h3>Ask Claude about gold right now</h3>
+    <p>Everything on the page, written out as a question. Copy it and paste it into Claude.</p>
+    <textarea id="brief" readonly></textarea>
+    <div class="mrow">
+      <button class="copy" id="cbtn" onclick="copyBrief()">Copy to clipboard</button>
+      <button class="close" onclick="E('modal').classList.remove('on')">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+// Null-safe element lookup. Before this, one mistyped or missing id threw inside
+// render() and every panel BELOW that line silently stayed on "Loading...".
+// A broken panel should cost one panel, not the page.
+const _stub={style:{},classList:{add(){},remove(){}},textContent:'',innerHTML:'',
+             removeAttribute(){},setAttribute(){},select(){},focus(){},value:'',
+             appendChild(){},remove(){},offsetWidth:0,scrollTop:0,scrollHeight:0};
+function E(id){return document.getElementById(id)||_stub;}
+const ago=m=>m>0?m+" min before":(m<0?(-m)+" min after":"same minute");
+function cd(ts){const s=ts-Date.now()/1000;if(s<0)return"done";
+  const h=Math.floor(s/3600),m=Math.floor(s%3600/60);
+  return h>24?Math.floor(h/24)+" days":(h?h+"h "+m+"m":m+" min");}
+
+async function openAsk(){
+  const m=E('modal'); m.classList.add('on');
+  E('brief').value='Building...';
+  try{ E('brief').value=LAST.brief||'(not available)'; }
+  catch(e){ E('brief').value='Could not build the briefing.'; }
+}
+async function copyBrief(){
+  const t=E('brief'), b=E('cbtn');
+  try{ await navigator.clipboard.writeText(t.value); }
+  catch(e){ t.removeAttribute('readonly'); t.select(); document.execCommand('copy');
+            t.setAttribute('readonly',''); }
+  b.textContent='Copied - now paste it into Claude';
+  setTimeout(()=>b.textContent='Copy to clipboard',2600);
+}
+
+function md(t){return esc(t)
+  .replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')
+  .replace(/\*(.+?)\*/g,'<i>$1</i>')
+  .replace(/^- /gm,'&bull; ')
+  .replace(/^---$/gm,'<hr style="border:0;border-top:1px solid #242b38;margin:8px 0">');}
+function bubble(cls,txt){
+  const l=E('chatlog');
+  const d=document.createElement('div'); d.className='msg '+cls; d.innerHTML=md(txt);
+  l.appendChild(d); l.scrollTop=l.scrollHeight; return d;}
+function askQ(q){E('qbox').value=q;send();}
+
+
+// ---------------------------------------------------------------- live price
+// data.json is rebuilt every few minutes, which is fine for headlines and
+// useless for a price. So the price comes straight from the source, in this
+// browser, every 10 seconds. No server sits in the middle -- which is also why
+// this does not get slower as more people open the page.
+var LAST = {};              // the last built payload, shared with the chat
+var LIVEPX = null;
+
+// Two sources for the same file, freshest first. The branch copy is rewritten
+// by the refresh loop every few minutes; the copy shipped with the site is
+// only as new as the last deploy, and is here so the page still works if
+// raw.githubusercontent is blocked or down.
+var DATA_URLS = [
+  'https://raw.githubusercontent.com/junwei04/gold-watch/data/data.json',
+  'data.json'
+];
+async function fetchData(){
+  let err;
+  for(const u of DATA_URLS){
+    try{
+      const r = await fetch(u + '?t=' + Date.now(), {cache:'no-store'});
+      if(r.ok) return r;
+    }catch(e){ err = e; }
+  }
+  throw (err || new Error('no data source reachable'));
+}
+
+async function tickPrice(){
+  try{
+    const r = await fetch('https://api.gold-api.com/price/XAU', {cache:'no-store'});
+    if(!r.ok) return;
+    const j = await r.json();
+    const p = parseFloat(j.price);
+    if(!isFinite(p)) return;
+    LIVEPX = p;
+    paintLive(); tickChart(); checkMove(); checkLevel();
+  }catch(e){ /* offline or blocked: the last built price stays on screen */ }
+}
+
+function paintLive(){
+  if(LIVEPX === null) return;
+  const el = E('px');
+  const shown = parseFloat(String(el.textContent).replace(/[^0-9.]/g,''));
+  el.textContent = '$' + LIVEPX.toLocaleString(undefined,{minimumFractionDigits:2});
+  if(isFinite(shown) && Math.abs(shown - LIVEPX) > 0.001){
+    el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  }
+  // recompute the day's change against the previous close from the last build
+  const pc = LAST.prev_close;
+  if(pc){
+    const d = LIVEPX - pc, pct = (d/pc)*100, up = d >= 0;
+    E('chg').innerHTML = '<span class="'+(up?'up':'dn')+'">'+(up?'+$':'-$')+
+      Math.abs(d).toFixed(1)+' ('+(up?'+':'')+pct.toFixed(2)+'%)</span>'+
+      '<span style="color:#5f6368;font-weight:400"> since yesterday</span>';
+  }
+  E('st').textContent = 'live';
+  E('dot').style.background = '#00d4aa';
+}
+
+// How old is the pre-built half? Stated plainly: a page that looks live while
+// showing twenty-minute-old headlines is worse than one that admits it.
+function paintFreshness(d){
+  const el = E('upd'); if(!d || !d.built_epoch) return;
+  const mins = Math.max(0, Math.round((Date.now()/1000 - d.built_epoch)/60));
+  let s;
+  if(mins < 1)        s = 'news updated just now';
+  else if(mins < 2)   s = 'news updated a minute ago';
+  else if(mins < 60)  s = 'news updated ' + mins + ' minutes ago';
+  else { const h = Math.round(mins/60);
+         s = 'news updated ' + h + (h===1?' hour':' hours') + ' ago'; }
+  el.textContent = s;
+  el.style.color = mins > 25 ? '#ffb86b' : '';
+}
+
+// ------------------------------------------------------------------ the chat
+// There is no server here, so there is nowhere to keep a shared API key -- and
+// putting one in the page would mean shipping a private credential to everyone
+// and letting any visitor spend it. So each person brings their own free key.
+// It is kept in their own browser, sent to Groq and to nobody else.
+function gwKey(){ try{ return localStorage.getItem('gw_key')||''; }catch(e){ return ''; } }
+function gwSetKey(k){
+  try{ localStorage.setItem('gw_key', k.trim()); }catch(e){}
+  paintKeyState();
+}
+function paintKeyState(){
+  const b = E('keystate'); if(!b) return;
+  const k = gwKey();
+  b.textContent = k ? ('key saved · •••' + k.slice(-4)) : 'no key yet';
+  b.style.color = k ? '#00d4aa' : '#5f6368';
+  const inp = E('keybox'); if(inp && k) inp.value = '';
+}
+function gwForget(){
+  try{ localStorage.removeItem('gw_key'); }catch(e){}
+  paintKeyState();
+  bubble('bot','Key removed from this browser.');
+}
+
+const GW_SYSTEM = "You are a market analyst talking to a day trader who trades gold on very short timeframes. He is looking at the same dashboard you are, so he can ALREADY SEE the price, the percentages and the headlines.\n\nDO NOT read the numbers back to him. Listing what the price is, what the high and low were, or repeating a headline is worthless -- he can see all of that. If your answer could have been written by someone just reading the screen aloud, it is a failed answer.\n\nYour job is to say what those numbers MEAN together:\n- What is unusual or out of line here? Gold has close relationships with the dollar, with bond yields and with silver. When one of them disagrees with gold, that disagreement is the story. Name it.\n- What does the COMBINATION imply that no single number shows on its own?\n- What is the single most important thing driving this right now, and what is just noise?\n- What would have to happen for this read to be wrong?\n\nRules:\n- Simple words, real thinking. Explain any term in the same sentence you use it. Simple language does NOT mean a shallow answer.\n- Lead with the most interesting thing, not with context.\n- Be willing to say 'this looks odd' or 'these two things contradict'.\n- If the data genuinely does not support a conclusion, say exactly what is missing and where he could get it. Never invent numbers or events.\n- Never tell him to buy or sell. Explain what the picture shows instead.\n- Short paragraphs and bullets. No tables or headings. Under 220 words.\n\n";
+const GW_NOKEY =
+  'The chat needs your own free key from Groq. It takes a minute and costs nothing.\n\n'
++ '- Go to **console.groq.com/keys**\n'
++ '- Sign in and create a key\n'
++ '- Paste it into the box above\n\n'
++ 'The key is stored only in this browser. It goes to Groq and to nobody else '
++ '— there is no server behind this page to send it to.';
+
+async function send(){
+  const box=E('qbox'), btn=E('sendbtn');
+  const q=box.value.trim(); if(!q)return;
+  box.value=''; btn.disabled=true; bubble('me',q);
+  const key = gwKey();
+  if(!key){ bubble('bot', GW_NOKEY); btn.disabled=false; box.focus(); return; }
+  const th=bubble('bot think','thinking...');
+  try{
+    const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},
+      body: JSON.stringify({
+        model:'openai/gpt-oss-120b',
+        messages:[{role:'system', content: GW_SYSTEM + '\n\n' + (LAST.brief||'')},
+                  {role:'user',   content: q}],
+        temperature:0.4, max_tokens:700
+      })
+    });
+    const j = await r.json();
+    th.remove();
+    if(!r.ok){
+      const m = (j && j.error && j.error.message) ? j.error.message : ('HTTP '+r.status);
+      bubble('bot', r.status===401
+        ? 'That key was rejected. Check it was copied whole, then paste it again.'
+        : ('Groq said: '+m));
+    } else {
+      bubble('bot', j.choices[0].message.content.trim());
+      E('bk').textContent='(groq, your key)';
+    }
+  }catch(e){ th.remove(); bubble('bot','Could not reach Groq ('+e.message+').'); }
+  btn.disabled=false; box.focus();
+}
+
+
+// ---------------------------------------------------------------------- chart
+// Candles come from the build (Yahoo blocks browsers, so they cannot be fetched
+// here), and the right-hand edge is kept live by the same 10-second spot tick
+// that drives the price at the top. So the history is up to ~5 minutes old and
+// the candle currently forming is always current -- which is the half that
+// matters when you are watching a 1-minute chart.
+var CHART=null, SERIES=null, VIEW=[], HI=null, LO=null;
+var TF = (function(){ try{ return parseInt(localStorage.getItem('gw_tf'))||1; }
+                      catch(e){ return 1; } })();
+
+// Lightweight Charts renders a unix timestamp as UTC. Shifting by the viewer's
+// own offset makes the axis read in THEIR local time -- which matters now that
+// this is not one person's dashboard. Singapore, London and New York each see
+// their own clock without the page knowing where anyone is.
+var TZ = -(new Date().getTimezoneOffset()) * 60;
+
+function aggregate(bars, tfMin){
+  const span = tfMin*60, out = [];
+  let cur = null;
+  for(const b of bars){
+    const bucket = Math.floor(b.t/span)*span;
+    if(!cur || cur.time !== bucket + TZ){
+      if(cur) out.push(cur);
+      cur = {time: bucket + TZ, open:b.o, high:b.h, low:b.l, close:b.c};
+    } else {
+      if(b.h > cur.high) cur.high = b.h;
+      if(b.l < cur.low)  cur.low  = b.l;
+      cur.close = b.c;
+    }
+  }
+  if(cur) out.push(cur);
+  return out;
+}
+
+function initChart(){
+  const el = E('chart');
+  if(!el || el === _stub || !window.LightweightCharts || CHART) return;
+  CHART = LightweightCharts.createChart(el, {
+    width: el.clientWidth, height: el.clientHeight,
+    layout:{ background:{color:'transparent'}, textColor:'#8b919a',
+             fontFamily:'-apple-system,BlinkMacSystemFont,system-ui,sans-serif', fontSize:11 },
+    grid:{ vertLines:{color:'#161b24'}, horzLines:{color:'#161b24'} },
+    rightPriceScale:{ borderColor:'#242b38', scaleMargins:{top:0.12, bottom:0.12} },
+    timeScale:{ borderColor:'#242b38', timeVisible:true, secondsVisible:false,
+                rightOffset:3 },
+    crosshair:{ mode: LightweightCharts.CrosshairMode.Normal,
+                vertLine:{color:'#3a4150', labelBackgroundColor:'#1f2632'},
+                horzLine:{color:'#3a4150', labelBackgroundColor:'#1f2632'} },
+    localization:{ priceFormatter: function(p){ return '$'+p.toFixed(2); } },
+    handleScale:{ axisPressedMouseMove:{time:true, price:false} }
+  });
+  SERIES = CHART.addCandlestickSeries({
+    upColor:'#00d4aa', downColor:'#ff3b30',
+    borderUpColor:'#00d4aa', borderDownColor:'#ff3b30',
+    wickUpColor:'#00d4aa', wickDownColor:'#ff3b30',
+    priceLineColor:'#ffd479'
+  });
+  // Follow the container rather than the window: the card is a grid child, so
+  // it can change width when the page reflows without the window resizing.
+  if(window.ResizeObserver){
+    new ResizeObserver(function(){
+      if(CHART && el.clientWidth) CHART.resize(el.clientWidth, el.clientHeight);
+    }).observe(el);
+  }
+  drawChart();
+}
+
+function drawChart(){
+  if(!SERIES || !LAST.bars || !LAST.bars.length) return;
+  VIEW = aggregate(LAST.bars, TF);
+  SERIES.setData(VIEW);
+
+  // yesterday's close and today's range, as lines -- the levels a day trader
+  // is actually watching, rather than decoration
+  [HI, LO].forEach(function(l){ if(l) SERIES.removePriceLine(l); });
+  HI = LO = null;
+  const lv = LAST.levels || {};
+  // A price line takes part in autoscaling, so drawing today's high when price
+  // is nowhere near it stretches the axis across the whole day's range and
+  // squashes an hour of 1-minute candles into a thin band -- destroying the
+  // detail the chart exists to show. So a level is only drawn once price is
+  // close enough for it to matter; the distance to both is always written
+  // underneath, so nothing is hidden, it just stops wrecking the scale.
+  // axisLabelVisible is off for the same family of reason: an off-screen line
+  // still pins its label to the edge, and the two then overlap in one corner.
+  const near = VIEW.length ? VIEW[VIEW.length-1].close : 0;
+  const close_enough = function(v){ return near && Math.abs(v-near)/near < 0.006; };
+  if(lv.day_high && close_enough(lv.day_high))
+    HI = SERIES.createPriceLine({price:lv.day_high, color:'#4a5160',
+      lineWidth:1, lineStyle:2, axisLabelVisible:false, title:"today's high"});
+  if(lv.day_low && close_enough(lv.day_low))
+    LO = SERIES.createPriceLine({price:lv.day_low, color:'#4a5160',
+      lineWidth:1, lineStyle:2, axisLabelVisible:false, title:"today's low"});
+
+  CHART.timeScale().fitContent();
+  const n = Math.min(VIEW.length, TF === 1 ? 120 : 90);
+  if(VIEW.length > n){
+    CHART.timeScale().setVisibleLogicalRange({from: VIEW.length - n, to: VIEW.length + 3});
+  }
+  paintChartLabel();
+}
+
+// Keep the forming candle current from the live spot price.
+function tickChart(){
+  if(!SERIES || LIVEPX === null || !VIEW.length) return;
+  const span = TF*60;
+  const bucket = Math.floor(Date.now()/1000/span)*span + TZ;
+  const last = VIEW[VIEW.length-1];
+  if(bucket < last.time) return;            // update() cannot go backwards
+  if(bucket === last.time){
+    last.close = LIVEPX;
+    if(LIVEPX > last.high) last.high = LIVEPX;
+    if(LIVEPX < last.low)  last.low  = LIVEPX;
+  } else {
+    VIEW.push({time:bucket, open:LIVEPX, high:LIVEPX, low:LIVEPX, close:LIVEPX});
+  }
+  SERIES.update(VIEW[VIEW.length-1]);
+}
+
+function setTF(mins, btn){
+  TF = mins;
+  try{ localStorage.setItem('gw_tf', String(mins)); }catch(e){}
+  document.querySelectorAll('.tfbtn').forEach(function(b){ b.classList.remove('on'); });
+  if(btn) btn.classList.add('on');
+  drawChart();
+  tickChart();
+}
+
+function paintChartLabel(){
+  const el = E('chartnote'); if(!el) return;
+  const mins = LAST.built_epoch
+    ? Math.max(0, Math.round((Date.now()/1000 - LAST.built_epoch)/60)) : null;
+  let s = 'Each candle is ' + (TF===1?'1 minute':TF+' minutes')
+    + '. The one on the right is forming now, live. '
+    + (mins === null ? '' : 'Earlier candles were last refreshed '
+        + (mins < 1 ? 'seconds' : mins + (mins===1?' minute':' minutes')) + ' ago.');
+  const lv = LAST.levels || {}, near = VIEW.length ? VIEW[VIEW.length-1].close : 0;
+  if(lv.day_high && lv.day_low && near){
+    const up = ((lv.day_high-near)/near*100), dn = ((near-lv.day_low)/near*100);
+    s += "\nToday's highest was $" + lv.day_high.toFixed(2) + ' ('
+       + (up<=0 ? 'we are at it now' : up.toFixed(2)+'% above here')
+       + "), lowest was $" + lv.day_low.toFixed(2) + ' ('
+       + (dn<=0 ? 'we are at it now' : dn.toFixed(2)+'% below here') + ').';
+  }
+  if(LAST.basis){
+    s += '\nCandle shapes come from gold futures, shifted onto the spot price '
+       + '(they normally sit about $' + Math.abs(LAST.basis).toFixed(0)
+       + ' apart) so the chart lines up with the number at the top.';
+  }
+  el.textContent = s;
+}
+
+
+// --------------------------------------------------------------------- alerts
+// Deliberately NOT "notify on every update". The site rebuilds every few
+// minutes; wiring a notification to that would fire ~288 times a day, and the
+// only thing it would reliably produce is people turning notifications off. So
+// each alert below is tied to something actually HAPPENING, and each is
+// independently switchable.
+//
+// These fire from the page, so they need it open -- in a tab, or installed to
+// the home screen and running in the background. Reaching a locked phone with
+// the app closed needs a server to hold subscriptions, which a static site has
+// nowhere to put.
+var ALERT_DEFAULTS = {move:true, news:true, event:true, level:false, every:false};
+var AL = (function(){
+  try{ return Object.assign({}, ALERT_DEFAULTS, JSON.parse(localStorage.getItem('gw_alerts')||'{}')); }
+  catch(e){ return Object.assign({}, ALERT_DEFAULTS); }
+})();
+var SEEN = (function(){
+  try{ return JSON.parse(localStorage.getItem('gw_seen')||'[]'); }catch(e){ return []; }
+})();
+var PXHIST = [];        // rolling live-price history, for the move test
+var LASTFIRE = {};      // per-category cooldown
+
+function saveAlerts(){ try{ localStorage.setItem('gw_alerts', JSON.stringify(AL)); }catch(e){} }
+function saveSeen(){
+  SEEN = SEEN.slice(-250);                    // bounded: this is localStorage
+  try{ localStorage.setItem('gw_seen', JSON.stringify(SEEN)); }catch(e){}
+}
+
+async function toggleAlert(key, el){
+  AL[key] = el.checked;
+  saveAlerts();
+  if(el.checked && !(await ensurePermission())){
+    el.checked = false; AL[key] = false; saveAlerts();
+  }
+  paintAlertState();
+}
+
+async function ensurePermission(){
+  if(!('Notification' in window)){
+    alertNote('This browser cannot show notifications.'); return false;
+  }
+  if(Notification.permission === 'granted') return true;
+  if(Notification.permission === 'denied'){
+    alertNote('Notifications are blocked for this site. Turn them back on in your '
+            + 'browser settings for this page, then try again.');
+    return false;
+  }
+  const p = await Notification.requestPermission();
+  if(p !== 'granted'){ alertNote('Not enabled \u2014 you said no to the permission prompt.'); return false; }
+  alertNote('');
+  return true;
+}
+
+function alertNote(msg){ const el = E('alertnote'); if(el) el.textContent = msg; }
+
+// One place that actually shows a notification, so the cooldown and the
+// installed-vs-tab difference are handled once rather than at four call sites.
+function fire(category, title, body, cooldownSec){
+  if(Notification.permission !== 'granted') return;
+  const now = Date.now();
+  if(LASTFIRE[category] && now - LASTFIRE[category] < (cooldownSec||300)*1000) return;
+  LASTFIRE[category] = now;
+  const opts = {body:body, icon:'icon-192.png', badge:'icon-192.png',
+                tag:'gw-'+category, renotify:false};
+  try{
+    if(navigator.serviceWorker && navigator.serviceWorker.ready){
+      navigator.serviceWorker.ready.then(function(reg){
+        reg.showNotification(title, opts);
+      }).catch(function(){ new Notification(title, opts); });
+    } else { new Notification(title, opts); }
+  }catch(e){ /* some browsers refuse the direct constructor; nothing to do */ }
+}
+
+// --- the triggers ----------------------------------------------------------
+
+// A move is only worth waking someone for if it is big FOR THIS HOUR. Gold at
+// 3am moves a fraction of what it does when New York opens, so a fixed
+// threshold would either scream all afternoon or never fire overnight.
+function checkMove(){
+  if(!AL.move || LIVEPX === null) return;
+  PXHIST.push({t:Date.now(), p:LIVEPX});
+  const cut = Date.now() - 3*60*1000;
+  while(PXHIST.length && PXHIST[0].t < cut) PXHIST.shift();
+  if(PXHIST.length < 6) return;                      // need ~1 min of samples
+
+  const then = PXHIST[0].p, mins = (Date.now() - PXHIST[0].t)/60000;
+  if(mins < 1.5) return;
+  const bp = Math.abs((LIVEPX - then)/then * 10000);
+
+  const hr = new Date().getUTCHours();               // hourly table is in SGT
+  const sgt = (hr + 8) % 24;
+  const row = (LAST.hourly||[]).find(function(r){ return r.hour === sgt; });
+  const normal = row ? row.avg : 2.0;                // bp per minute
+  const expected = normal * mins;
+  if(expected <= 0) return;
+
+  if(bp > expected * 3){
+    const dir = LIVEPX > then ? 'jumped up' : 'dropped';
+    const usd = Math.abs(LIVEPX - then).toFixed(1);
+    fire('move', 'Gold ' + dir + ' $' + usd,
+         'That is about ' + Math.round(bp/expected) + 'x the usual move for this '
+         + 'time of day. Now $' + LIVEPX.toFixed(2) + '.', 420);
+  }
+}
+
+// A headline is "new" if we have not shown it before -- not if the build is
+// new. Those are different things, and confusing them is how you end up
+// re-announcing the same story every five minutes.
+function checkNews(d){
+  if(!AL.news) return;
+  const items = (d.pinned || d.news || []).slice(0, 6);
+  for(const n of items){
+    const id = (n.title||'').slice(0,90);
+    if(!id || SEEN.indexOf(id) !== -1) continue;
+    SEEN.push(id);
+    if(FIRSTLOAD) continue;          // do not dump the backlog on first open
+    fire('news', 'Gold news: ' + (n.cat || 'market'),
+         (n.title||'') + (n.effect ? '\n\n' + n.effect : ''), 120);
+  }
+  saveSeen();
+}
+
+function checkEvent(d){
+  if(!AL.event) return;
+  const now = Date.now()/1000;
+  for(const c of (d.calendar||[])){
+    if(!c.ts || c.ts < now) continue;
+    const mins = Math.round((c.ts - now)/60);
+    if(mins > 15 || mins < 0) continue;
+    const id = 'ev:' + c.ts + c.title;
+    if(SEEN.indexOf(id) !== -1) continue;
+    SEEN.push(id); saveSeen();
+    fire('event', c.title + ' in ' + mins + ' min',
+         'Big US number due. Gold often moves sharply the moment it lands.', 60);
+  }
+}
+
+function checkLevel(){
+  if(!AL.level || LIVEPX === null || !LAST.levels) return;
+  const lv = LAST.levels;
+  if(lv.day_high && LIVEPX > lv.day_high)
+    fire('level', 'Gold broke today\u2019s high',
+         'Now $' + LIVEPX.toFixed(2) + ', above today\u2019s previous high of $'
+         + lv.day_high.toFixed(2) + '.', 900);
+  else if(lv.day_low && LIVEPX < lv.day_low)
+    fire('level', 'Gold broke today\u2019s low',
+         'Now $' + LIVEPX.toFixed(2) + ', below today\u2019s previous low of $'
+         + lv.day_low.toFixed(2) + '.', 900);
+}
+
+// The literal "tell me about every update" option, off by default and labelled
+// for what it is, because the honest version of this feature is the four above.
+var LASTBUILD = null;
+function checkEvery(d){
+  if(!AL.every || !d.built_epoch) return;
+  if(LASTBUILD !== null && d.built_epoch !== LASTBUILD && !FIRSTLOAD){
+    fire('every', 'Gold Watch updated',
+         '$' + (d.price||'') + ' \u00b7 ' + (d.bias||'') + ' \u00b7 '
+         + (d.n_news||0) + ' headlines.', 60);
+  }
+  LASTBUILD = d.built_epoch;
+}
+
+var FIRSTLOAD = true;
+function runAlerts(d){
+  checkNews(d); checkEvent(d); checkEvery(d);
+  FIRSTLOAD = false;
+}
+
+function paintAlertState(){
+  const on = Object.keys(ALERT_DEFAULTS).filter(function(k){ return AL[k]; }).length;
+  const el = E('alertstate'); if(!el) return;
+  if(!('Notification' in window)) { el.textContent = 'not supported in this browser'; return; }
+  el.textContent = Notification.permission === 'granted'
+    ? (on ? on + ' alert' + (on>1?'s':'') + ' on' : 'all off')
+    : 'not enabled yet';
+  el.style.color = (Notification.permission === 'granted' && on) ? '#00d4aa' : '#5f6368';
+}
+
+function initAlerts(){
+  Object.keys(ALERT_DEFAULTS).forEach(function(k){
+    const el = E('al_'+k); if(el && el !== _stub) el.checked = !!AL[k];
+  });
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('sw.js').catch(function(){});
+  }
+  paintAlertState();
+}
+
+let CAT='all';
+function setCat(b,c){CAT=c;document.querySelectorAll('.filt button').forEach(x=>x.classList.remove('on'));b.classList.add('on');render();}
+let lastPx=null;
+async function render(){
+  let d; try{ d=await (await fetchData()).json(); }
+  catch(e){ E('st').textContent='disconnected';
+            E('dot').style.background='#ff3b30'; return; }
+
+  LAST=d;
+  runAlerts(d);
+  initChart(); drawChart();
+  E('st').textContent=d.status==='live'?'live':d.status;
+  E('dot').style.background=d.status==='live'?'#00d4aa':'#ff9500';
+  paintFreshness(d);
+  E('cnt').textContent=d.n_news+' headlines, '+(d.social||[]).length+' posts';
+
+  const pxEl=E('px');
+  pxEl.textContent=d.price?('$'+d.price.toLocaleString(undefined,{minimumFractionDigits:2})):'—';
+  if(lastPx!==null&&d.price!==lastPx){pxEl.classList.remove('flash');void pxEl.offsetWidth;pxEl.classList.add('flash');}
+  lastPx=d.price;
+  if(LIVEPX!==null) paintLive();
+  const up=d.chg>=0;
+  E('chg').innerHTML='<span class="'+(up?'up':'dn')+'">'+(up?'+$':'-$')+
+    Math.abs(d.chg)+' ('+(up?'+':'')+d.chg_pct+'%)</span>'+
+    '<span style="color:#5f6368;font-weight:400"> since yesterday</span>';
+
+  E('lead').innerHTML='<b>'+esc(d.bias_plain||'')+'</b> '+esc(d.bias_because||'');
+  E('errbox').innerHTML=(d.errors||[]).length?
+    '<div class="err">Some data is temporarily unavailable: '+d.errors.map(esc).join(' &middot; ')+
+    '. It retries by itself.</div>':'';
+
+  const ss=d.sessions||{};
+  E('sess').innerHTML=(ss.list||[]).map(function(x){
+    return '<div class="ses'+(x.on?' on':'')+'"><span class="nm">'+
+      '<span class="pill2'+(x.on?'':' off')+'">'+(x.on?'OPEN':'shut')+'</span>'+
+      esc(x.name)+'</span><span class="nt">'+esc(x.note)+'</span></div>';}).join('');
+  E('nextev').textContent=ss.next?
+    ('Next: '+ss.next.what+' in '+ss.next.mins+' minutes'):'';
+
+  const hv=d.hourly||[];
+  if(hv.length){
+    const mx=Math.max.apply(null,hv.map(r=>r.avg))||1;
+    E('volchart').innerHTML=hv.map(function(r){
+      return '<div class="volbar'+(r.avg>=mx*0.85?' pk':'')+'" style="height:'+
+        Math.max(4,r.avg/mx*100)+'%" title="'+r.hour+':00 SGT — '+r.avg+' pips per minute"></div>';
+      }).join('')+'';
+    const d0=hv[0].days||0;
+    E('volsub').innerHTML='Average movement per minute, by hour (your time). '+
+      'Tallest bar = most movement.<br><span style="color:#ff9f0a">Only '+d0+
+      ' days of data, and it includes a Fed decision — one big event can make an hour look busier than it usually is.</span>';
+  }
+
+  const pe=d.headline_events||[];
+  E('pinned').style.display=pe.length?'block':'none';
+  E('pinnedlist').innerHTML=pe.map(function(n,i){
+    return '<div class="pn"><span class="rank">'+(i+1)+'</span>'+
+      (n.link?'<a href="'+esc(n.link)+'" target="_blank" style="color:#dfe3e8;text-decoration:none">':'<span style="color:#dfe3e8">')+
+      esc(n.title)+(n.link?'</a>':'</span>')+
+      '<div class="eff" style="margin-left:20px">'+esc(n.effect||'')+'</div></div>';}).join('');
+
+  const pr=d.peers||{};
+  E('peers').innerHTML=Object.keys(pr).length?Object.keys(pr).map(function(k){
+    const v=pr[k], up=v.pct>=0;
+    return '<div class="pr"><span class="lbl">'+esc(v.label)+'</span><span class="val">'+v.px+
+      ' <span class="'+(up?'up':'dn')+'">'+(up?'+':'')+v.pct+'%</span></span></div>';}).join('')
+    :'<div class="empty">Loading related markets...</div>';
+  const lv=d.levels||{};
+  if(lv.day_high){
+    E('rpos').style.left='calc('+lv.pos_pct+'% - 1.5px)';
+    E('rlo').textContent='low $'+lv.day_low+'  (+$'+lv.from_low+')';
+    E('rhi').textContent='($'+lv.from_high+' away)  high $'+lv.day_high;
+  }
+  E('dstory').textContent=d.dollar_story||'';
+
+  E('bias').textContent=d.bias;
+  E('bias').style.color=d.bias_colour;
+  E('ndl').style.left='calc('+(50+d.bias_score*10)+'% - 1.5px)';
+  E('bwhy').innerHTML=(d.bias_why||[]).map(function(w){
+    const nm={'vs prev close':'Compared with yesterday','last hour trend':'Last hour',
+              'news tone (6h)':'Today\'s news','event risk':'Watch out for'}[w.factor]||w.factor;
+    return '<div class="f"><span class="n">'+esc(nm)+'</span><span class="d">'+esc(w.detail)+'</span></div>';
+  }).join('');
+
+  const sp=d.bars||[];
+  if(sp.length>2){const cs=sp.map(b=>b.c),lo=Math.min.apply(null,cs),hi=Math.max.apply(null,cs),rg=(hi-lo)||1;
+    E('spark').innerHTML=sp.map(function(b,i){
+      const h=8+((b.c-lo)/rg)*92, c=i>0&&b.c>=sp[i-1].c?'#00d4aa':'#ff3b30';
+      return '<div style="height:'+h+'%;background:'+c+';opacity:.72"></div>';}).join('');}
+
+  E('moves').innerHTML=(d.moves||[]).length?d.moves.map(function(m){
+    const col=m.dir==='up'?'#00d4aa':'#ff3b30';
+    const c=(m.why||[]).length?m.why.map(function(x){
+      return '<div class="cand"><div class="ct">'+
+        (x.link?'<a href="'+esc(x.link)+'" target="_blank">'+esc(x.title)+'</a>':esc(x.title))+'</div>'+
+        '<div class="ctm">'+esc(x.src)+' &middot; '+x.time+' SGT &middot; '+ago(x.mins)+'</div>'+
+        (x.effect?'<div class="eff">'+esc(x.effect)+'</div>':'')+'</div>';}).join('')
+      :'<div class="cand"><div class="ctm">Nothing was in the news then, so this was probably just normal buying and selling.</div></div>';
+    return '<div class="mv" style="border-color:'+col+'"><div class="mvt">'+esc(m.plain||'')+
+      '<br><span class="ctm">'+m.time+' SGT &middot; $'+m.from+' to $'+m.to+'</span></div>'+c+'</div>';
+  }).join(''):'<div class="empty">Gold has been moving normally, no sudden jumps to explain.</div>';
+
+  const items=(d.social||[]).filter(p=>CAT==='all'||p.cat===CAT);
+  E('social').innerHTML=items.length?items.slice(0,10).map(function(p){
+    return '<div class="post"><span class="cat '+esc(p.cat||'person')+'">'+esc(p.cat||'news')+'</span>'+
+    '<span class="who">'+esc(p.who)+'</span> '+
+    '<span class="ctm">&middot; '+esc(p.where)+' &middot; '+p.time+' SGT</span>'+
+    '<div class="ptxt">'+(p.link?'<a href="'+esc(p.link)+'" target="_blank" style="color:inherit;text-decoration:none">':'')+
+    esc(p.text)+(p.link?'</a>':'')+'</div>'+
+    (p.effect?'<div class="eff">'+esc(p.effect)+'</div>':'')+'</div>';}).join('')
+    :'<div class="empty">Nothing in this category right now.</div>';
+
+  E('news').innerHTML=(d.news||[]).length?d.news.slice(0,12).map(function(n){
+    return '<div class="hl"><div class="hlh">'+n.time+' SGT &middot; '+esc(n.src)+'</div>'+
+    (n.link?'<a href="'+esc(n.link)+'" target="_blank" style="color:#dfe3e8;text-decoration:none">':'<span style="color:#dfe3e8">')+
+    esc(n.title)+(n.link?'</a>':'</span>')+
+    (n.effect?'<div class="eff">'+esc(n.effect)+'</div>':'')+'</div>';}).join('')
+    :'<div class="empty">No gold news right now.</div>';
+
+  const now=Date.now()/1000;
+  const ev=(d.calendar||[]).filter(c=>c.ts>now-1800).slice(0,6);
+  E('cal').innerHTML=ev.length?ev.map(function(c){
+    return '<div class="ev"><span><span class="'+(c.impact==='High'?'hi':'med')+'">'+
+    (c.impact==='High'?'BIG':'MEDIUM')+'</span> '+esc(c.title)+'</span>'+
+    '<span class="cd">'+esc(c.date.split(' ').slice(0,2).join(' '))+' '+c.time+
+    '<br><span style="color:#5f6368">in '+cd(c.ts)+'</span></span></div>';}).join('')
+    :((d.errors||[]).some(e=>e.indexOf('calendar')===0)
+      ? '<div class="empty">Cannot load the calendar right now. That is different from nothing being scheduled. It retries automatically.</div>'
+      : '<div class="empty">Nothing scheduled.</div>');
+}
+render();
+tickPrice(); setInterval(tickPrice, 10000); paintKeyState();
+initChart();
+  initAlerts();
+document.querySelectorAll('.tfbtn').forEach(function(b){
+  if(parseInt(b.textContent)===TF) b.classList.add('on'); });
+setInterval(render, 5000);
+</script></body></html>
